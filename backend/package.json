@@ -20,15 +20,16 @@
   },
   "homepage": "https://github.com/rmit-fsd-2025-s1/s3976669-s4117080-a2#readme",
   "dependencies": {
+    "@prisma/client": "^6.13.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "mysql2": "^3.14.1",
-    "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.24"
+    "prisma": "^6.13.0",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
