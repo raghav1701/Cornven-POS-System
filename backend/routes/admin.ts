@@ -12,10 +12,44 @@ const router = Router();
 router.use(...requireAuth(Role.ADMIN));
 
 /**
+ * GET /admin/tenants-allocations
+ * Returns all tenants, each with their user info and all their rentals (with cube details)
+ */
+router.get("/tenants-allocations", async (req, res) => {
+  try {
+    const tenants = await prisma.tenant.findMany({
+      include: {
+        // pull back the linked user’s basic info
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        // include every rental, and for each rental include its cube
+        rentals: {
+          include: {
+            cube: true,
+          },
+        },
+      },
+    });
+
+    res.json(tenants);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch tenants and allocations" });
+    return;
+  }
+});
+
+/**
  * POST /admin/tenants
  * Create a new User(role=TENANT) + Tenant profile
  */
-router.post("/tenants", async (req, res) => {
+router.post("/add-tenant", async (req, res) => {
   const { name, email, password, phone, businessName, address, notes } =
     req.body;
 
@@ -46,7 +80,7 @@ router.post("/tenants", async (req, res) => {
  * POST /admin/rentals
  * Allocate (rent) an AVAILABLE cube to a tenant
  */
-router.post("/rentals", async (req, res) => {
+router.post("/tenant-cube-allocation", async (req, res) => {
   const { tenantId, cubeId, startDate, endDate } = req.body;
 
   try {
