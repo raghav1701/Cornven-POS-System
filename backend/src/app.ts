@@ -1,44 +1,50 @@
+// src/app.ts
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { json, urlencoded } from "body-parser";
 import dotenv from "dotenv";
 
-// assuming this file is src/app.ts and routes are in src/routes/auth.ts:
 import authRouter from "../routes/auth";
+import adminRouter from "../routes/admin";
+import tenantRouter from "../routes/tenant";
 
 dotenv.config();
-
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 async function bootstrap() {
-  try {
-    const app = express();
+  const app = express();
 
-    app.use(helmet());
-    app.use(
-      cors({
-        origin: ["http://localhost:3000"],
-        credentials: true,
-      })
+  app.use(helmet());
+  app.use(
+    cors({
+      origin: [process.env.CLIENT_ORIGIN || "http://localhost:3000"],
+      credentials: true,
+    })
+  );
+  app.use(json());
+  app.use(urlencoded({ extended: true }));
+
+  // ─── Request Logger ─────────────────────────────────────────────────────────────
+  app.use((req, res, next) => {
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`
     );
-    app.use(json());
-    app.use(urlencoded({ extended: true }));
+    next();
+  });
 
-    app.use((req, _res, next) => {
-      console.log(`${req.method} ${req.path}`);
-      next();
-    });
+  // ─── Route Mounts ────────────────────────────────────────────────────────────────
+  app.use("/auth", authRouter);
+  app.use("/admin", adminRouter);
+  app.use("/tenant", tenantRouter);
 
-    app.use("/auth", authRouter);
-
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error("Error starting server:", err);
-    process.exit(1);
-  }
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error("Failed to start:", err);
+  process.exit(1);
+});

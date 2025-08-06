@@ -9,42 +9,39 @@ const router = Router();
 
 router.post(
   "/login",
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, password, role } = req.body as {
+      const { email, password } = req.body as {
         email?: string;
         password?: string;
-        role?: keyof typeof Role;
       };
 
-      if (!email || !password || !role) {
-        res
-          .status(400)
-          .json({ error: "Email, password and role are all required" });
+      if (!email || !password) {
+        res.status(400).json({ error: "Email and password are required" });
         return;
       }
-      const user = await prisma.user.findUnique({ where: { email } });
+
+      // 1) Find the user by email
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
       if (!user) {
         res.status(401).json({ error: "Invalid credentials" });
         return;
       }
 
-      if (user.role !== Role[role]) {
-        res
-          .status(403)
-          .json({ error: `User is not assigned the role "${role}"` });
-        return;
-      }
-
+      // 2) Check the password
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) {
         res.status(401).json({ error: "Invalid credentials" });
         return;
       }
 
+      // 3) Sign a token that includes their actual role
       const token = signToken({ userId: user.id, role: user.role });
 
-      // note: no `return` here, just `res.json`
+      // 4) Return token + basic user info (including role)
       res.json({
         token,
         user: {
