@@ -2,12 +2,12 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "IP Address: 209.38.26.237",
-  "main": "index.js",
+  "main": "app.ts",
   "scripts": {
     "test": "jest --runInBand",
     "build": "tsc",
-    "start": "node dist/app.js",
-    "dev": "nodemon --watch src --exec ts-node src/app.ts"
+    "start": "node dist/app.ts",
+    "dev": "nodemon --watch . --ext ts --ignore dist --exec ts-node app.ts"
   },
   "repository": {
     "type": "git",
