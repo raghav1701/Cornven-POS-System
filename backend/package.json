@@ -6,8 +6,10 @@
   "scripts": {
     "test": "jest --runInBand",
     "build": "tsc",
+     "vercel-build": "prisma migrate deploy && npm run build && prisma generate",
     "start": "node dist/app.ts",
     "dev": "nodemon --watch . --ext ts --ignore dist --exec ts-node app.ts"
+   
   },
   "repository": {
     "type": "git",
