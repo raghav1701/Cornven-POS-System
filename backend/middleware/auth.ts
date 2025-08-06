@@ -4,11 +4,11 @@ import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import { Role } from "@prisma/client";
 
-// Extend Express.Request
+// Extend Express.Request so req.user.userId is now a string
 declare global {
   namespace Express {
     interface Request {
-      user?: { userId: number; role: Role };
+      user?: { userId: string; role: Role };
     }
   }
 }
@@ -16,9 +16,9 @@ declare global {
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 /**
- * Signs a JWT for given userId + role
+ * Signs a JWT for given userId (UUID string) + role
  */
-export function signToken(payload: { userId: number; role: Role }) {
+export function signToken(payload: { userId: string; role: Role }) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
 }
 
@@ -38,7 +38,7 @@ export const authenticateToken: RequestHandler = (req, res, next) => {
   try {
     // throws if invalid or expired
     const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: number;
+      userId: string;
       role: Role;
     };
     req.user = decoded;

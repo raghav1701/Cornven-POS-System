@@ -8,60 +8,64 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String    @unique
-  password  String
-  role      Role
-  phone     String?
-  tenants   Tenant[]              // only users with role=TENANT will have a tenant row
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String
+  role         Role
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  // all rentals this user (as ADMIN) has allocated
-  allocations Rental[]            @relation("AllocatedBy")
+  // relations
+  tenants      Tenant[]
+  allocations  Rental[]  @relation("AllocatedBy")
 }
 
 model Tenant {
-  id           Int       @id @default(autoincrement())
-  user         User      @relation(fields: [userId], references: [id])
-  userId       Int       @unique
+  id           String    @id @default(uuid())
+  userId       String    @unique
   businessName String
   address      String?
   notes        String?
-  rentals      Rental[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  // relations
+  user         User      @relation(fields: [userId], references: [id])
+  rentals      Rental[]
 }
 
 model Cube {
-  id            Int         @id @default(autoincrement())
-  code          String      @unique   // e.g. A1, B2
+  id            String      @id @default(uuid())
+  code          String      @unique
   size          String
   pricePerMonth Float
   status        CubeStatus  @default(AVAILABLE)
-  rentals       Rental[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  // relations
+  rentals       Rental[]
 }
 
 model Rental {
-  id             Int           @id @default(autoincrement())
-  tenant         Tenant        @relation(fields: [tenantId], references: [id])
-  tenantId       Int
-  cube           Cube          @relation(fields: [cubeId], references: [id])
-  cubeId         Int
-  startDate      DateTime
-  endDate        DateTime
-  status         RentalStatus  @default(ACTIVE)
-  monthlyRent    Float
-  lastPayment    DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id            String        @id @default(uuid())
+  tenantId      String
+  cubeId        String
+  startDate     DateTime
+  endDate       DateTime
+  status        RentalStatus  @default(ACTIVE)
+  monthlyRent   Float
+  lastPayment   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  allocatedById String
 
-  // who (which ADMIN user) allocated this rental
-  allocatedBy    User          @relation("AllocatedBy", fields: [allocatedById], references: [id])
-  allocatedById  Int
+  // relations
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  cube          Cube          @relation(fields: [cubeId], references: [id])
+  allocatedBy   User          @relation("AllocatedBy", fields: [allocatedById], references: [id])
 }
 
 enum Role {
