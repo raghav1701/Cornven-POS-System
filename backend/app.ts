@@ -6,9 +6,9 @@ import helmet from "helmet";
 import { json, urlencoded } from "body-parser";
 import dotenv from "dotenv";
 
-import authRouter from "../routes/auth";
-import adminRouter from "../routes/admin";
-import tenantRouter from "../routes/tenant";
+import authRouter from "./routes/auth";
+import adminRouter from "./routes/admin";
+import tenantRouter from "./routes/tenant";
 
 dotenv.config();
 const PORT = Number(process.env.PORT) || 3001;
