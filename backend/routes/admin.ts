@@ -1,7 +1,7 @@
 // src/routes/admin.ts
 
 import { Router } from "express";
-import { Role, CubeStatus } from "@prisma/client";
+import { Role, CubeStatus, ProductStatus } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import bcrypt from "bcrypt";
@@ -131,6 +131,68 @@ router.get("/available-cubes", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch available cubes" });
     return;
   }
+});
+
+/**
+ * GET /admin/products
+ * Optionally filter by tenantId via query
+ */
+router.get("/products", async (req, res) => {
+  const { tenantId } = req.query;
+  const where: any = {};
+  if (tenantId) where.tenantId = tenantId;
+  const products = await prisma.product.findMany({
+    where,
+    include: {
+      tenant: { select: { id: true, businessName: true } },
+      logs: {
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { id: true, name: true } } },
+      },
+    },
+  });
+  res.json(products);
+});
+
+/**
+ * PUT /admin/products/:id/approve
+ * Approve or reject a pending product
+ */
+router.put("/products/:id/approve", async (req, res) => {
+  const { id } = req.params;
+  const { approve } = req.body as { approve: boolean };
+
+  const status = approve ? ProductStatus.APPROVED : ProductStatus.REJECTED;
+
+  const product = await prisma.product.update({
+    where: { id },
+    data: {
+      status,
+      logs: {
+        create: {
+          userId: req.user!.userId,
+          changeType: "APPROVAL",
+          newValue: status,
+        },
+      },
+    },
+  });
+
+  res.json(product);
+});
+
+/**
+ * GET /admin/products/:id/logs
+ * Inventory change log for a single product
+ */
+router.get("/products/:id/logs", async (req, res) => {
+  const { id } = req.params;
+  const logs = await prisma.inventoryLog.findMany({
+    where: { productId: id },
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { id: true, name: true } } },
+  });
+  res.json(logs);
 });
 
 export default router;
