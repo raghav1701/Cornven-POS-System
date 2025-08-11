@@ -21,7 +21,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(
     cors({
-      origin: [process.env.CLIENT_ORIGIN || "http://localhost:3000"],
+      origin: ["https://pos-orpin-eight.vercel.app", "http://localhost:3000"],
       credentials: true,
     })
   );
