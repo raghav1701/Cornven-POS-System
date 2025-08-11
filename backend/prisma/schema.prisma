@@ -8,64 +8,108 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  name         String
-  email        String    @unique
-  password     String
-  role         Role
-  phone        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // relations
-  tenants      Tenant[]
-  allocations  Rental[]  @relation("AllocatedBy")
+  tenants       Tenant[]
+  allocations   Rental[]       @relation("AllocatedBy")
+  inventoryLogs InventoryLog[]
 }
 
 model Tenant {
-  id           String    @id @default(uuid())
-  userId       String    @unique
+  id           String   @id @default(uuid())
+  userId       String   @unique
   businessName String
   address      String?
   notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // relations
-  user         User      @relation(fields: [userId], references: [id])
-  rentals      Rental[]
+  user     User      @relation(fields: [userId], references: [id])
+  rentals  Rental[]
+  products Product[]
 }
 
 model Cube {
-  id            String      @id @default(uuid())
-  code          String      @unique
+  id            String     @id @default(uuid())
+  code          String     @unique
   size          String
   pricePerMonth Float
-  status        CubeStatus  @default(AVAILABLE)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  status        CubeStatus @default(AVAILABLE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   // relations
-  rentals       Rental[]
+  rentals Rental[]
 }
 
 model Rental {
-  id            String        @id @default(uuid())
+  id            String       @id @default(uuid())
   tenantId      String
   cubeId        String
   startDate     DateTime
   endDate       DateTime
-  status        RentalStatus  @default(ACTIVE)
+  status        RentalStatus @default(ACTIVE)
   monthlyRent   Float
   lastPayment   DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   allocatedById String
 
   // relations
-  tenant        Tenant        @relation(fields: [tenantId], references: [id])
-  cube          Cube          @relation(fields: [cubeId], references: [id])
-  allocatedBy   User          @relation("AllocatedBy", fields: [allocatedById], references: [id])
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  cube        Cube   @relation(fields: [cubeId], references: [id])
+  allocatedBy User   @relation("AllocatedBy", fields: [allocatedById], references: [id])
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  name        String
+  description String?
+  price       Float
+  stock       Int
+  category    String?
+  sku         String?       @unique
+  status      ProductStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  logs InventoryLog[]
+}
+
+model InventoryLog {
+  id            String              @id @default(uuid())
+  product       Product             @relation(fields: [productId], references: [id])
+  productId     String
+  user          User                @relation(fields: [userId], references: [id])
+  userId        String
+  changeType    InventoryChangeType
+  previousValue String? // e.g. old stock or price
+  newValue      String? // e.g. new stock or price
+  createdAt     DateTime            @default(now())
+}
+
+enum ProductStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InventoryChangeType {
+  SUBMISSION
+  STOCK_UPDATE
+  PRICE_UPDATE
+  APPROVAL
 }
 
 enum Role {

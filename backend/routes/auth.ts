@@ -21,27 +21,20 @@ router.post(
         return;
       }
 
-      // 1) Find the user by email
-      const user = await prisma.user.findUnique({
-        where: { email },
-      });
-
+      const user = await prisma.user.findUnique({ where: { email } });
       if (!user) {
         res.status(401).json({ error: "Invalid credentials" });
         return;
       }
 
-      // 2) Check the password
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) {
         res.status(401).json({ error: "Invalid credentials" });
         return;
       }
 
-      // 3) Sign a token that includes their actual role
       const token = signToken({ userId: user.id, role: user.role });
 
-      // 4) Return token + basic user info (including role)
       res.json({
         token,
         user: {
@@ -49,6 +42,7 @@ router.post(
           name: user.name,
           email: user.email,
           role: user.role,
+          phone: user.phone,
         },
       });
     } catch (err) {

@@ -7,7 +7,8 @@ import { json, urlencoded } from "body-parser";
 import dotenv from "dotenv";
 
 import authRouter from "./routes/auth";
-import adminRouter from "./routes/admin";
+import adminTenantsRouter from "./routes/adminTenants";
+import adminProductsRouter from "./routes/adminProducts";
 import tenantRouter from "./routes/tenant";
 
 dotenv.config();
@@ -36,7 +37,8 @@ async function bootstrap() {
 
   // ─── Route Mounts ────────────────────────────────────────────────────────────────
   app.use("/auth", authRouter);
-  app.use("/admin", adminRouter);
+  app.use("/admin", adminTenantsRouter);
+  app.use("/admin", adminProductsRouter);
   app.use("/tenant", tenantRouter);
 
   app.listen(PORT, () => {
