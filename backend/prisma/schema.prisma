@@ -21,6 +21,7 @@ model User {
   tenants       Tenant[]
   allocations   Rental[]       @relation("AllocatedBy")
   inventoryLogs InventoryLog[]
+  receivedPayments Payment[] 
 }
 
 model Tenant {
@@ -59,7 +60,6 @@ model Rental {
   endDate       DateTime
   status        RentalStatus @default(ACTIVE)
   monthlyRent   Float
-  lastPayment   DateTime?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   allocatedById String
@@ -68,6 +68,7 @@ model Rental {
   tenant      Tenant @relation(fields: [tenantId], references: [id])
   cube        Cube   @relation(fields: [cubeId], references: [id])
   allocatedBy User   @relation("AllocatedBy", fields: [allocatedById], references: [id])
+  payments      Payment[] 
 }
 
 model Product {
@@ -98,6 +99,31 @@ model InventoryLog {
   newValue      String? // e.g. new stock or price
   createdAt     DateTime            @default(now())
 }
+
+model Payment {
+  id            String        @id @default(uuid())
+  rental        Rental        @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  rentalId      String
+  amount        Float
+  method        PaymentMethod
+  paidAt        DateTime      @default(now())
+  receivedBy    User?         @relation(fields: [receivedById], references: [id])
+  receivedById  String?
+  note          String?
+  createdAt     DateTime      @default(now())
+
+  @@index([rentalId])
+  @@index([receivedById])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  UPI
+  OTHER
+}
+
 
 enum ProductStatus {
   PENDING

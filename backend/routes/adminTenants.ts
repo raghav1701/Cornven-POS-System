@@ -1,7 +1,7 @@
 // src/routes/adminTenants.ts
 
 import { Router } from "express";
-import { Role, CubeStatus } from "@prisma/client";
+import { Role, CubeStatus, RentalStatus } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import bcrypt from "bcrypt";
@@ -63,26 +63,50 @@ router.post("/add-tenant", async (req, res) => {
  */
 router.post("/tenant-cube-allocation", async (req, res) => {
   const { tenantId, cubeId, startDate, endDate } = req.body;
+
   try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      res.status(400).json({ error: "Invalid startDate or endDate" });
+      return;
+    }
+    if (end <= start) {
+      res.status(400).json({ error: "endDate must be after startDate" });
+      return;
+    }
+
     const cube = await prisma.cube.findUnique({ where: { id: cubeId } });
     if (!cube || cube.status !== CubeStatus.AVAILABLE) {
       res.status(400).json({ error: "Cube not available" });
       return;
     }
+
+    const now = new Date();
+    const status =
+      now < start
+        ? RentalStatus.UPCOMING
+        : now > end
+        ? RentalStatus.EXPIRED
+        : RentalStatus.ACTIVE;
+
     const rental = await prisma.rental.create({
       data: {
         tenantId,
         cubeId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: start,
+        endDate: end,
+        status, // <-- set it here
         monthlyRent: cube.pricePerMonth,
         allocatedById: req.user!.userId,
       },
     });
+
     await prisma.cube.update({
       where: { id: cubeId },
       data: { status: CubeStatus.RENTED },
     });
+
     res.status(201).json(rental);
   } catch (err) {
     console.error(err);
