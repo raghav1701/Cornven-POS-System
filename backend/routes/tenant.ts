@@ -2,6 +2,7 @@
 
 import { Router } from "express";
 import { Role, InventoryChangeType, ProductStatus } from "@prisma/client";
+import { summarizeRental } from "../utils/billing";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 
@@ -171,6 +172,81 @@ router.get("/products", async (req, res) => {
     include: { logs: { orderBy: { createdAt: "asc" } } },
   });
   res.json(products);
+});
+
+/**
+ * GET /tenant/my-billing
+ * Returns the active (or upcoming) rental with computed balance and payments
+ */
+router.get("/my-billing", async (req, res) => {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { userId: req.user!.userId },
+      select: { id: true },
+    });
+    if (!tenant) {
+      res.status(404).json({ error: "Tenant profile not found" });
+      return;
+    }
+
+    const rental = await prisma.rental.findFirst({
+      where: {
+        tenantId: tenant.id,
+        // include both ACTIVE and UPCOMING (tenants might want to prepay)
+        status: { in: ["ACTIVE", "UPCOMING"] },
+      },
+      include: { cube: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!rental) {
+      res.status(404).json({ error: "No current rental" });
+      return;
+    }
+
+    const payments = await prisma.payment.findMany({
+      where: { rentalId: rental.id },
+      orderBy: { paidAt: "desc" },
+    });
+    const summary = summarizeRental(rental as any, payments);
+
+    res.json({ rental, payments, summary });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch billing" });
+  }
+});
+
+/**
+ * GET /tenant/my-payments
+ * Quick listing of the tenant’s payment history (across all rentals)
+ */
+router.get("/my-payments", async (req, res) => {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { userId: req.user!.userId },
+      select: { id: true },
+    });
+    if (!tenant) {
+      res.status(404).json({ error: "Tenant profile not found" });
+      return;
+    }
+
+    const rentals = await prisma.rental.findMany({
+      where: { tenantId: tenant.id },
+      select: { id: true, startDate: true, endDate: true },
+    });
+    const rentalIds = rentals.map((r) => r.id);
+
+    const payments = await prisma.payment.findMany({
+      where: { rentalId: { in: rentalIds } },
+      orderBy: { paidAt: "desc" },
+    });
+
+    res.json({ rentals, payments });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
 });
 
 export default router;
