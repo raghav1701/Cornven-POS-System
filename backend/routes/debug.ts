@@ -5,29 +5,24 @@ import { requireAuth } from "../middleware/auth";
 import { Role } from "@prisma/client";
 
 const router = Router();
-router.get("/_dbinfo", ...requireAuth(Role.ADMIN), async (_req, res) => {
-  const [row] = await prisma.$queryRaw<
-    Array<{
-      db: string;
-      schema: string;
-      host: string | null;
-      port: number | null;
-    }>
-  >`SELECT current_database() AS db,
-           current_schema()   AS schema,
-           inet_server_addr()::text AS host,
-           inet_server_port()      AS port`;
-  res.json({
-    env: process.env.VERCEL_ENV || process.env.NODE_ENV,
-    databaseUrlHost: (() => {
-      try {
-        return new URL(process.env.DATABASE_URL!).host;
-      } catch {
-        return "unavailable";
-      }
-    })(),
-    info: row,
-  });
+router.get("/_counts", ...requireAuth(Role.ADMIN), async (_req, res) => {
+  const [users, tenants, cubes, rentals, products, logs] = await Promise.all([
+    prisma.user.count(),
+    prisma.tenant.count(),
+    prisma.cube.count(),
+    prisma.rental.count(),
+    prisma.product.count(),
+    prisma.inventoryLog.count(),
+  ]);
+  res.json({ users, tenants, cubes, rentals, products, logs });
+});
+
+router.get("/_recent", ...requireAuth(Role.ADMIN), async (_req, res) => {
+  const [products, inv] = await Promise.all([
+    prisma.product.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
+    prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
+  ]);
+  res.json({ products, inventory: inv });
 });
 
 export default router;
