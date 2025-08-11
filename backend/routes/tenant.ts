@@ -12,10 +12,7 @@ router.use(...requireAuth(Role.TENANT));
 
 /**
  * GET /tenant/my-details
- * Returns:
- *  - tenant profile (businessName, address, notes, etc.)
- *  - linked user info (id, name, email, phone)
- *  - all rentals for that tenant, each with its cube details
+ * Returns loggedIn tenant details
  */
 router.get("/my-details", async (req, res) => {
   try {
@@ -103,27 +100,35 @@ router.post("/products", async (req, res) => {
  * PUT /tenant/products/:id
  * Update stock and/or price for an existing product
  */
+// PUT /tenant/products/:id
 router.put("/products/:id", async (req, res) => {
   const { id } = req.params;
   const { price, stock } = req.body;
+  const who = req.user!; // { userId: string, role: Role }
+
   try {
-    // ensure it’s your product
+    // NOTE: we select the relation `tenant` -> { userId }
     const existing = await prisma.product.findUnique({
       where: { id },
-      select: { tenantId: true, price: true, stock: true },
+      select: {
+        price: true,
+        stock: true,
+        tenant: { select: { userId: true } },
+      },
     });
-    if (!existing || existing.tenantId !== req.user!.userId) {
+
+    if (!existing || existing.tenant.userId !== who.userId) {
       res.status(404).json({ error: "Product not found" });
       return;
     }
 
     const updates: Record<string, any> = {};
-    const logsData = [];
+    const logsData: any[] = [];
 
     if (price != null && price !== existing.price) {
       updates.price = price;
       logsData.push({
-        userId: req.user!.userId,
+        userId: who.userId,
         changeType: InventoryChangeType.PRICE_UPDATE,
         previousValue: existing.price.toString(),
         newValue: price.toString(),
@@ -132,19 +137,21 @@ router.put("/products/:id", async (req, res) => {
     if (stock != null && stock !== existing.stock) {
       updates.stock = stock;
       logsData.push({
-        userId: req.user!.userId,
+        userId: who.userId,
         changeType: InventoryChangeType.STOCK_UPDATE,
         previousValue: existing.stock.toString(),
         newValue: stock.toString(),
       });
     }
 
+    if (!Object.keys(updates).length) {
+      res.status(400).json({ error: "No changes to apply" });
+      return;
+    }
+
     const updated = await prisma.product.update({
       where: { id },
-      data: {
-        ...updates,
-        logs: { create: logsData },
-      },
+      data: { ...updates, logs: { create: logsData } },
     });
 
     res.json(updated);
