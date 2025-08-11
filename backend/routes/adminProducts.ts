@@ -12,7 +12,7 @@ router.use(...requireAuth(Role.ADMIN));
 
 /**
  * GET /admin/products
- * Optionally filter by tenantId via query
+ * Filter Products by tenantId via query
  */
 router.get("/products", async (req, res) => {
   const { tenantId } = req.query;

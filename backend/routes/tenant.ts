@@ -167,7 +167,7 @@ router.put("/products/:id", async (req, res) => {
  */
 router.get("/products", async (req, res) => {
   const products = await prisma.product.findMany({
-    where: { tenantId: req.user!.userId },
+    where: { tenant: { userId: req.user!.userId } },
     include: { logs: { orderBy: { createdAt: "asc" } } },
   });
   res.json(products);
