@@ -86,18 +86,39 @@ model Product {
   updatedAt   DateTime      @updatedAt
 
   logs InventoryLog[]
+  variants   ProductVariant[]
 }
+
+model ProductVariant {
+  id         String   @id @default(uuid())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String
+  color      String
+  size       String
+  price      Float
+  stock      Int
+  sku        String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([productId, color, size])  // one price/stock per color+size
+}
+
 
 model InventoryLog {
   id            String              @id @default(uuid())
   product       Product             @relation(fields: [productId], references: [id])
   productId     String
+  productVariantId String?
   user          User                @relation(fields: [userId], references: [id])
   userId        String
   changeType    InventoryChangeType
   previousValue String? // e.g. old stock or price
   newValue      String? // e.g. new stock or price
   createdAt     DateTime            @default(now())
+
+  @@index([productId])
+  @@index([productVariantId])
 }
 
 model Payment {
@@ -136,6 +157,9 @@ enum InventoryChangeType {
   STOCK_UPDATE
   PRICE_UPDATE
   APPROVAL
+  VARIANT_CREATE
+  VARIANT_STOCK_UPDATE
+  VARIANT_PRICE_UPDATE
 }
 
 enum Role {

@@ -23,6 +23,7 @@ router.get("/products", async (req, res) => {
       where,
       include: {
         tenant: { select: { id: true, businessName: true } },
+        variants: { orderBy: { createdAt: "asc" } }, // ← add this
         logs: {
           orderBy: { createdAt: "asc" },
           include: { user: { select: { id: true, name: true } } },
