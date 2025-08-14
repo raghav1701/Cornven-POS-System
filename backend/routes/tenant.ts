@@ -160,6 +160,59 @@ router.put("/products/:id", async (_req, res) => {
   });
 });
 
+// POST /tenant/products/:productId/variants
+router.post("/products/:productId/variants", async (req, res) => {
+  const { productId } = req.params;
+  const { color, size, price, stock, sku } = req.body as {
+    color: string;
+    size: string;
+    price: number;
+    stock: number;
+    sku?: string;
+  };
+
+  try {
+    // ownership: product -> tenant.userId == JWT userId
+    const prod = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { tenant: { select: { userId: true } } },
+    });
+    if (!prod || prod.tenant.userId !== req.user!.userId) {
+      res.status(404).json({ error: "Product not found" });
+      return;
+    }
+
+    const variant = await prisma.productVariant.create({
+      data: { productId, color, size, price, stock, sku },
+    });
+
+    await prisma.inventoryLog.create({
+      data: {
+        productId,
+        productVariantId: variant.id,
+        userId: req.user!.userId,
+        changeType: InventoryChangeType.VARIANT_CREATE,
+        previousValue: null,
+        newValue: JSON.stringify({ color, size, price, stock, sku }),
+      },
+    });
+
+    await recomputeProductAggregates(productId);
+    res.status(201).json(variant);
+  } catch (err: any) {
+    console.error(err);
+    if (err.code === "P2002") {
+      res
+        .status(409)
+        .json({
+          error: "Variant already exists (duplicate sku or color+size)",
+        });
+    } else {
+      res.status(400).json({ error: "Failed to create variant" });
+    }
+  }
+});
+
 /**
  * PUT /tenant/products/:productId/variants/:variantId
  * Update a specific variant’s price/stock
