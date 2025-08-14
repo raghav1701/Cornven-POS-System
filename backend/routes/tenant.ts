@@ -160,7 +160,10 @@ router.put("/products/:id", async (_req, res) => {
   });
 });
 
-// POST /tenant/products/:productId/variants
+/**
+ * POST /tenant/products/:productId/variants
+ * Create a product Variant
+ */
 router.post("/products/:productId/variants", async (req, res) => {
   const { productId } = req.params;
   const { color, size, price, stock, sku } = req.body as {
@@ -202,11 +205,9 @@ router.post("/products/:productId/variants", async (req, res) => {
   } catch (err: any) {
     console.error(err);
     if (err.code === "P2002") {
-      res
-        .status(409)
-        .json({
-          error: "Variant already exists (duplicate sku or color+size)",
-        });
+      res.status(409).json({
+        error: "Variant already exists (duplicate sku or color+size)",
+      });
     } else {
       res.status(400).json({ error: "Failed to create variant" });
     }

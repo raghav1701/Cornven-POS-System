@@ -97,7 +97,7 @@ router.post("/tenant-cube-allocation", async (req, res) => {
         startDate: start,
         endDate: end,
         status, // <-- set it here
-        monthlyRent: cube.pricePerMonth,
+        dailyRent: cube.pricePerDay,
         allocatedById: req.user!.userId,
       },
     });
