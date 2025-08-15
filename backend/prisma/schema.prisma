@@ -43,7 +43,7 @@ model Cube {
   id            String     @id @default(uuid())
   code          String     @unique
   size          String
-  pricePerMonth Float
+  pricePerDay Float
   status        CubeStatus @default(AVAILABLE)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -59,7 +59,7 @@ model Rental {
   startDate     DateTime
   endDate       DateTime
   status        RentalStatus @default(ACTIVE)
-  monthlyRent   Float
+  dailyRent   Float
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   allocatedById String
