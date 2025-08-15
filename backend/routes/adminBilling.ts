@@ -8,6 +8,31 @@ const router = Router();
 router.use(...requireAuth(Role.ADMIN));
 
 /**
+ * GET /admin/rentals/:id/payments
+ * List payment history for a rental + balance summary
+ */
+router.get("/rentals/:id/payments", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const rental = await prisma.rental.findUnique({ where: { id } });
+    if (!rental) {
+      res.status(404).json({ error: "Rental not found" });
+      return;
+    }
+    const payments = await prisma.payment.findMany({
+      where: { rentalId: id },
+      orderBy: { paidAt: "desc" },
+      include: { receivedBy: { select: { id: true, name: true } } },
+    });
+    const summary = summarizeRental(rental, payments);
+    res.json({ payments, summary });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
+/**
  * POST /admin/rentals/:id/payments
  * Record a payment for a rental
  * Body: { amount: number; method: PaymentMethod; paidAt?: string; note?: string }
@@ -54,31 +79,6 @@ router.post("/rentals/:id/payments", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Failed to record payment" });
-  }
-});
-
-/**
- * GET /admin/rentals/:id/payments
- * List payment history for a rental + balance summary
- */
-router.get("/rentals/:id/payments", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const rental = await prisma.rental.findUnique({ where: { id } });
-    if (!rental) {
-      res.status(404).json({ error: "Rental not found" });
-      return;
-    }
-    const payments = await prisma.payment.findMany({
-      where: { rentalId: id },
-      orderBy: { paidAt: "desc" },
-      include: { receivedBy: { select: { id: true, name: true } } },
-    });
-    const summary = summarizeRental(rental, payments);
-    res.json({ payments, summary });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch payments" });
   }
 });
 
