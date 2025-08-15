@@ -1,65 +1,94 @@
 import { Rental, Payment } from "@prisma/client";
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function toUTCDateOnly(d: Date) {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
+}
+function addDays(d: Date, n: number) {
+  return new Date(d.getTime() + n * MS_PER_DAY);
+}
+/** whole UTC days from a (inclusive) to b (exclusive) */
+function daysBetween(a: Date, b: Date) {
+  const A = toUTCDateOnly(a);
+  const B = toUTCDateOnly(b);
+  return Math.max(0, Math.floor((B.getTime() - A.getTime()) / MS_PER_DAY));
+}
+
 /**
- * Billing model:
- * - Each "period" is one month from the rental's start day-of-month to the next.
- * - expectedDue is numberOfPeriodsElapsed * monthlyRent (capped by endDate).
- * - balance = expectedDue - totalPaid
- * - overdue = balance > 0 AND there is at least one due period whose due date <= now
+ * Per-day accrual; due every 14 days:
+ * - accruedToDate = dailyRent * daysElapsed (to min(now, endDate))
+ * - dueToDate     = dailyRent * (full 14-day blocks elapsed), UNLESS lease ended → then all accrued is due
+ * - balanceDue    = dueToDate - totalPaid
+ * - unbilledAccrued = accruedToDate - dueToDate (not yet due in the current open fortnight)
+ * - overdue       = balanceDue > 0 and (past end OR past (lastBoundary + graceDays))
  */
-export function addMonths(anchor: Date, n: number) {
-  const d = new Date(anchor);
-  d.setMonth(d.getMonth() + n);
-  return d;
-}
+export function summarizeRental(
+  rental: Rental,
+  payments: Pick<Payment, "amount" | "paidAt">[],
+  opts?: { graceDays?: number }
+) {
+  const graceDays = opts?.graceDays ?? 0;
 
-export function periodsElapsed(start: Date, endExclusive: Date) {
-  if (endExclusive <= start) return 0;
-  let count = 0;
-  let cursor = new Date(start);
-  while (true) {
-    const next = addMonths(cursor, 1);
-    if (next > endExclusive) break;
-    count++;
-    cursor = next;
-  }
-  return count;
-}
-
-export function nextDueDate(start: Date, now: Date) {
-  if (now <= start) return start;
-  let cursor = new Date(start);
-  while (addMonths(cursor, 1) <= now) {
-    cursor = addMonths(cursor, 1);
-  }
-  // cursor is the most recent due boundary <= now
-  return addMonths(cursor, 1); // next boundary after the most recent one
-}
-
-export function summarizeRental(rental: Rental, payments: Payment[]) {
   const now = new Date();
-  const start = new Date(rental.startDate);
-  const end = new Date(rental.endDate);
+  const start = toUTCDateOnly(new Date(rental.startDate));
+  const end = toUTCDateOnly(new Date(rental.endDate));
 
-  // periods that should already be paid (cap at end)
-  const effectiveNow = now < end ? now : end;
-  const duePeriods = periodsElapsed(start, effectiveNow);
-  const expectedDue = duePeriods * rental.monthlyRent;
+  // no accrual after lease end
+  const effectiveNow = now < end ? toUTCDateOnly(now) : end;
 
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const balance = +(expectedDue - totalPaid).toFixed(2);
+  // 1) Accrual (per-day, constant rate)
+  const elapsedDays = daysBetween(start, effectiveNow);
+  const accruedToDate = +(elapsedDays * rental.dailyRent).toFixed(2);
 
-  // when is the *next* period due?
-  const nextDue = nextDueDate(start, now);
+  // 2) Fortnight boundaries
+  const daysSinceStart = elapsedDays; // same window
+  const fortnightsElapsed = Math.floor(daysSinceStart / 14);
 
-  const overdue = balance > 0 && now >= nextDue && now < end;
+  const lastBoundary = addDays(start, 14 * fortnightsElapsed);
+  const nextBoundary = addDays(start, 14 * (fortnightsElapsed + 1));
+
+  // 3) What is DUE now?
+  //    - If lease ended: everything accrued is now due
+  //    - Else: only full 14-day blocks are due
+  const totalRentalDays = daysBetween(start, end);
+  const dueDaysBlocks = Math.min(14 * fortnightsElapsed, totalRentalDays);
+  const dueToDateOngoing = +(dueDaysBlocks * rental.dailyRent).toFixed(2);
+  const leaseEnded = effectiveNow.getTime() === end.getTime();
+  const dueToDate = leaseEnded ? accruedToDate : dueToDateOngoing;
+
+  // 4) Payments
+  const totalPaid = +payments.reduce((s, p) => s + p.amount, 0).toFixed(2);
+
+  // 5) Balances
+  const balanceDue = +(dueToDate - totalPaid).toFixed(2);
+  const unbilledAccrued = +(accruedToDate - dueToDate).toFixed(2);
+
+  // 6) Overdue
+  const graceCutoff = addDays(lastBoundary, graceDays);
+  const pastEnd = now >= end;
+  const anyCompletedFortnight = fortnightsElapsed > 0;
+  const overdue =
+    balanceDue > 0 &&
+    (pastEnd || (anyCompletedFortnight && toUTCDateOnly(now) >= graceCutoff));
 
   return {
-    expectedDue,
+    // primary
+    accruedToDate, // total accrued so far (per-day)
+    dueToDate, // amount that *should* be paid by now (fortnightly)
     totalPaid,
-    balance,
-    duePeriods,
-    nextDueDate: nextDue,
+    balanceDue, // outstanding from dueToDate
+    unbilledAccrued, // accrued since last boundary, not yet due
+
+    // meta
+    fortnightsElapsed,
+    lastDueDate: lastBoundary,
+    nextDueDate: nextBoundary < end ? nextBoundary : end,
     overdue,
+
+    // back-compat (old callers used expectedDue)
+    expectedDue: dueToDate,
   };
 }

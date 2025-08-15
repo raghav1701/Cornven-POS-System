@@ -94,11 +94,10 @@ router.get("/rentals/overdue", async (_req, res) => {
           include: { user: { select: { id: true, name: true, email: true } } },
         },
         cube: true,
-        payments: false as any, // will fetch below to keep payload small
       },
     });
 
-    // Pull all payments once to reduce roundtrips
+    // group payments by rental to avoid N+1 queries
     const paymentsByRental: Record<string, { amount: number; paidAt: Date }[]> =
       {};
     const allPayments = await prisma.payment.findMany({
@@ -106,22 +105,21 @@ router.get("/rentals/overdue", async (_req, res) => {
       select: { rentalId: true, amount: true, paidAt: true },
     });
     for (const p of allPayments) {
-      (paymentsByRental[p.rentalId] ||= []).push({
-        amount: p.amount,
-        paidAt: p.paidAt,
-      });
+      (paymentsByRental[p.rentalId] ||= []).push(p);
     }
 
     const overdueList = rentals
       .map((r) => {
         const summary = summarizeRental(
-          r as any,
-          (paymentsByRental[r.id] as any) || []
+          r,
+          paymentsByRental[r.id] || [],
+          { graceDays: 5 } // or your preferred grace
         );
         return { rental: r, summary };
       })
-      .filter(({ summary }) => summary.overdue && summary.balance > 0)
-      .sort((a, b) => b.summary.balance - a.summary.balance);
+      // ↓ use balanceDue, not balance
+      .filter(({ summary }) => summary.overdue && summary.balanceDue > 0)
+      .sort((a, b) => b.summary.balanceDue - a.summary.balanceDue);
 
     res.json(overdueList);
   } catch (err) {
