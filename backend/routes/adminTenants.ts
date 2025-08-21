@@ -34,28 +34,7 @@ router.get("/tenants-allocations", async (req, res) => {
  * POST /admin/add-tenant
  * Create a new User(role=TENANT) + Tenant profile
  */
-router.post("/add-tenant", async (req, res) => {
-  const { name, email, password, phone, businessName, address, notes } =
-    req.body;
-  try {
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashed,
-        role: Role.TENANT,
-        phone,
-        tenants: { create: { businessName, address, notes } },
-      },
-      include: { tenants: true },
-    });
-    res.status(201).json(user);
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Unable to create tenant" });
-  }
-});
+
 
 /**
  * POST /admin/tenant-cube-allocation
