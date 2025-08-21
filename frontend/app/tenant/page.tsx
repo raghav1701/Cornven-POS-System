@@ -520,7 +520,7 @@ const TenantDashboard = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-medium text-gray-900">Cube {rental.cube.code}</h4>
-                            <p className="text-sm text-gray-600">{rental.cube.size} - ${rental.cube.pricePerDayth}/month</p>
+                            <p className="text-sm text-gray-600">{rental.cube.size} - ${rental.cube.pricePerDay}/day</p>
                             <p className="text-sm text-gray-600">
                               {new Date(rental.startDate).toLocaleDateString()} - {new Date(rental.endDate).toLocaleDateString()}
                             </p>
@@ -533,7 +533,7 @@ const TenantDashboard = () => {
                             }`}>
                               {rental.status}
                             </span>
-                            <p className="text-sm text-gray-600 mt-1">Monthly: ${rental.dailyRent}</p>
+                            <p className="text-sm text-gray-600 mt-1">Daily: ${rental.dailyRent}</p>
                           </div>
                         </div>
                       </div>
@@ -931,7 +931,7 @@ const TenantDashboard = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Rent</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Daily Rent</label>
                 <p className="text-gray-900">
                   {tenantDetails?.rentals?.[0]?.dailyRent ? `$${tenantDetails.rentals[0].dailyRent.toFixed(2)}` : 'N/A'}
                 </p>

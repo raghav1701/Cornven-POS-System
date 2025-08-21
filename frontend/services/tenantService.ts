@@ -64,7 +64,7 @@ export interface ViewTenantsResponse {
       id: string;
       code: string;
       size: string;
-      pricePerDayth: number;
+      pricePerDay: number;
       status: "AVAILABLE" | "RENTED" | "MAINTENANCE";
       createdAt: string;
       updatedAt: string;
@@ -89,7 +89,7 @@ export interface AvailableCube {
   id: string;
   code: string;
   size: string;
-  pricePerDayth: number;
+  pricePerDay: number;
   status: string;
   createdAt: string;
   updatedAt: string;

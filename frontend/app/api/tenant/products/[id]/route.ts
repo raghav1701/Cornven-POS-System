@@ -37,6 +37,10 @@ export async function PUT(
 
     console.log('Request body being sent:', requestBody);
 
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
     const response = await fetch(`https://cornven-pos-system.vercel.app/tenant/products/${params.id}`, {
       method: 'PUT',
       headers: {
@@ -44,7 +48,10 @@ export async function PUT(
         'Authorization': authHeader,
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     console.log('Deployed API response status:', response.status);
     const data = await response.json();
@@ -63,9 +70,32 @@ export async function PUT(
     });
   } catch (error) {
     console.error('Product update error:', error);
+    
+    // Handle specific timeout and connection errors
+    if ((error as Error).name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Product update request timed out. Please try again.' },
+        { 
+          status: 408,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'PUT, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          }
+        }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to update product' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'PUT, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+      }
     );
   }
 }

@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     
     // Proxy the request to the deployed API with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
     
     const response = await fetch(`${DEPLOYED_API_URL}/auth/login`, {
       method: 'POST',

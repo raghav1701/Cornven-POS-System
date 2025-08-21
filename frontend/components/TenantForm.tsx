@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tenant, TenantFormData } from '@/types/tenant';
 import { tenantService, AvailableCube } from '@/services/tenantService';
 
@@ -19,6 +20,7 @@ interface TenantFormProps {
 }
 
 const TenantForm = ({ isOpen, onClose, onSubmit, editingTenant }: TenantFormProps) => {
+  const router = useRouter();
   const [formData, setFormData] = useState<TenantFormData>({
     name: '',
     email: '',
@@ -142,6 +144,7 @@ const TenantForm = ({ isOpen, onClose, onSubmit, editingTenant }: TenantFormProp
         setTimeout(() => {
           onClose();
           resetForm();
+          router.push('/admin/tenants/');
         }, 1500);
       } else {
         // Handle creating new tenant
@@ -200,6 +203,7 @@ const TenantForm = ({ isOpen, onClose, onSubmit, editingTenant }: TenantFormProp
     setTimeout(() => {
       onClose();
       resetForm();
+      router.push('/admin/tenants/');
     }, 1500);
   };
 
@@ -281,12 +285,13 @@ const TenantForm = ({ isOpen, onClose, onSubmit, editingTenant }: TenantFormProp
         
         setNotification({
           type: 'success',
-          message: 'Tenant created and cube allocated successfully!'
+          message: 'Cube allocated successfully!'
         });
         
         setTimeout(() => {
           onClose();
           resetForm();
+          router.push('/admin/tenants/');
         }, 1500);
       } else {
         throw new Error(response.message || 'Failed to allocate cube');
