@@ -1,0 +1,22 @@
+Week,Sprint,Date,Day,Ticket,Tasks,Hour spent (hour)
+Week2,Sprint 0,2024-08-01,Thursday,FE-001,Client meeting and requirement analysis for POS system frontend,2
+Week2,Sprint 0,2024-08-01,Thursday,FE-002,Initial project setup and Next.js configuration,3
+Week2,Sprint 0,2024-08-02,Friday,FE-003,Design system setup - Tailwind CSS configuration and base styles,4
+Week2,Sprint 0,2024-08-02,Friday,FE-004,Authentication module mockup design and component structure,3
+Week2,Sprint 0,2024-08-03,Saturday,FE-005,Login form component development with validation,4
+Week2,Sprint 0,2024-08-03,Saturday,FE-006,Authentication context and state management setup,2
+Week2,Sprint 0,2024-08-04,Sunday,FE-007,Login API integration and error handling,3
+Week2,Sprint 0,2024-08-04,Sunday,FE-008,Authentication flow testing and debugging,3
+,,,,,Total hour spent in Week 2,24
+
+Week3,Sprint 0,2024-08-05,Monday,FE-009,POS module mockup UI design and layout planning,4
+Week3,Sprint 0,2024-08-05,Monday,FE-010,Navigation component development and routing setup,3
+Week3,Sprint 0,2024-08-06,Tuesday,FE-011,Inventory module mockup UI components development,4
+Week3,Sprint 0,2024-08-06,Tuesday,FE-012,Product listing and search functionality mockup,3
+Week3,Sprint 0,2024-08-07,Wednesday,FE-013,Tenant management module mockup UI design,4
+Week3,Sprint 0,2024-08-07,Wednesday,FE-014,Tenant form component with validation mockup,2
+Week3,Sprint 0,2024-08-08,Thursday,FE-015,Tenant list and management interface mockup,3
+Week3,Sprint 0,2024-08-08,Thursday,FE-016,Responsive design implementation across all modules,1
+,,,,,Total hour spent in Week 3,24
+
+,,,,,Total hour spent in Sprint 0,48

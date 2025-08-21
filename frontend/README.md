@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cornven POS - Tenant Management System
+
+A modern Point-of-Sale and Self-Service Management System for Cornven, a concept cube store in Australia that collaborates with over 200 independent artists and designers.
+
+## Features
+
+### Module 1: Tenant & Rental Management (Admin Only)
+
+- **Tenant List**: View all tenants with their details, cube assignments, and lease status
+- **Add/Edit Tenant**: Modal form for creating and updating tenant information
+- **Lease Management**: Set and update lease start/end dates with automatic status calculation
+- **Rent Collection**: Record and track rent payments with payment history
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 with App Router
+- **Styling**: Tailwind CSS
+- **Language**: TypeScript
+- **State Management**: React useState (Zustand ready for future implementation)
+- **Data**: Mock JSON data for development
 
 ## Getting Started
 
-First, run the development server:
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+2. **Run Development Server**
+   ```bash
+   npm run dev
+   ```
+
+3. **Open Browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## Project Structure
+
+```
+pos/
+├── app/
+│   ├── admin/
+│   │   └── tenants/
+│   │       └── page.tsx          # Main tenant management page
+│   ├── globals.css               # Global styles with Tailwind
+│   ├── layout.tsx               # Root layout
+│   └── page.tsx                 # Home page
+├── components/
+│   ├── Navigation.tsx           # Top navigation bar
+│   ├── TenantList.tsx          # Tenant table with CRUD actions
+│   ├── TenantForm.tsx          # Add/Edit tenant modal form
+│   ├── LeaseManagement.tsx     # Lease date management
+│   └── RentCollection.tsx      # Payment recording and history
+├── types/
+│   └── tenant.ts               # TypeScript interfaces
+├── data/
+│   └── mockData.ts             # Mock data and utilities
+└── package.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Tenant Management
+- Add, edit, and delete tenants
+- Assign cube spaces (C1-C5)
+- Track contact information and business details
+- Form validation and error handling
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Lease Management
+- Set lease start and end dates
+- Automatic status calculation (Upcoming/Active/Expired)
+- Visual status indicators
+- Real-time status updates
 
-## Learn More
+### Rent Collection
+- Record payments with amount, method, and date
+- Payment history tracking
+- Total payment calculations
+- Multiple payment methods (Bank Transfer/Card)
 
-To learn more about Next.js, take a look at the following resources:
+### Dashboard Features
+- Statistics overview cards
+- Tab-based navigation
+- Responsive design
+- Clean admin interface
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Mock Data
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The application includes sample data:
+- **Alice Smith**: Active lease with payment history
+- **Bob Lee**: Upcoming lease with no payments
+- **Carol Johnson**: Expired lease with historical payments
 
-## Deploy on Vercel
+## Future Modules
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Inventory Management** (Admin + Store Staff)
+- **POS Checkout** (Store Staff)
+- **Artist Self-Service Portal** (Artists)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Design System
+
+The application uses a consistent design system with:
+- Primary blue color scheme
+- Status-based color coding (green/blue/red)
+- Responsive grid layouts
+- Accessible form controls
+- Hover states and transitions
+
+## Development Notes
+
+- Uses TypeScript for type safety
+- Modular component architecture
+- Tailwind CSS for consistent styling
+- Mock data for rapid prototyping
+- Ready for backend integration
+- Prepared for role-based access control
