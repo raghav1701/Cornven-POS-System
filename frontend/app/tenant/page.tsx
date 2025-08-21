@@ -520,7 +520,7 @@ const TenantDashboard = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-medium text-gray-900">Cube {rental.cube.code}</h4>
-                            <p className="text-sm text-gray-600">{rental.cube.size} - ${rental.cube.pricePerMonth}/month</p>
+                            <p className="text-sm text-gray-600">{rental.cube.size} - ${rental.cube.pricePerDayth}/month</p>
                             <p className="text-sm text-gray-600">
                               {new Date(rental.startDate).toLocaleDateString()} - {new Date(rental.endDate).toLocaleDateString()}
                             </p>

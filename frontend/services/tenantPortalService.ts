@@ -34,7 +34,7 @@ export interface TenantDetails {
       id: string;
       code: string;
       size: string;
-      pricePerMonth: number;
+      pricePerDayth: number;
       status: string;
       createdAt: string;
       updatedAt: string;
