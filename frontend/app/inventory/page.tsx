@@ -88,13 +88,44 @@ export default function InventoryPage() {
     await loadApiProducts();
   };
 
+  // Calculate tenant status based on rental dates and status (synced with admin logic)
+  const calculateTenantStatus = (tenant: AdminTenant): "Upcoming" | "Active" | "Inactive" | "Available" => {
+    if (!tenant.rentals || tenant.rentals.length === 0) {
+      return "Available"; // No rentals - tenant is approved but hasn't rented any cube
+    }
+    
+    // Get the most recent active rental or the first one
+    const activeRental = tenant.rentals.find(rental => rental.status === "ACTIVE") || tenant.rentals[0];
+    
+    if (!activeRental) return "Available";
+    
+    const now = new Date();
+    const startDate = new Date(activeRental.startDate);
+    const endDate = new Date(activeRental.endDate);
+    
+    if (activeRental.status === "ACTIVE" && now >= startDate && now <= endDate) {
+      return "Active"; // Currently renting and within rental period
+    } else if (now < startDate) {
+      return "Upcoming"; // Has rental but start date is in future
+    } else {
+      return "Inactive"; // Rental period has ended
+    }
+  };
+
   // Load API tenants
   const loadApiTenants = async () => {
     try {
       setTenantsLoading(true);
       const tenants = await adminTenantService.getAllTenants();
       console.log('Successfully fetched tenants:', tenants.length, 'items');
-      setApiTenants(tenants);
+      
+      // Add calculated status to each tenant
+      const tenantsWithStatus = tenants.map(tenant => ({
+        ...tenant,
+        calculatedStatus: calculateTenantStatus(tenant)
+      }));
+      
+      setApiTenants(tenantsWithStatus);
     } catch (error) {
       console.error('Error loading tenants:', error);
     } finally {
@@ -106,6 +137,22 @@ export default function InventoryPage() {
     loadAllProducts();
     loadApiTenants();
   }, []);
+
+  // Filter tenants based on search and status
+  const filteredTenants = useMemo(() => {
+    if (!apiTenants) return [];
+    
+    return (apiTenants || []).filter(tenant => {
+      const matchesSearch = tenant.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          tenant.user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          tenant.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          tenant.user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = !tenantStatusFilter || calculateTenantStatus(tenant) === tenantStatusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [apiTenants, searchQuery, tenantStatusFilter]);
 
   // Convert API product to internal format
   const convertApiProductToProduct = (apiProduct: AdminProduct): Product => ({
@@ -433,6 +480,38 @@ export default function InventoryPage() {
 
             {activeTab === 'tenants' && (
               <div>
+                {/* Tenant Status Filter */}
+                <div className="mb-6">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                        <input
+                          type="text"
+                          placeholder="Search tenants..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        aria-label="Filter by tenant status"
+                        value={tenantStatusFilter}
+                        onChange={(e) => setTenantStatusFilter(e.target.value)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Upcoming">Upcoming</option>
+                        <option value="Available">Available</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Tenants Table */}
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
@@ -488,7 +567,7 @@ export default function InventoryPage() {
                             </td>
                           </tr>
                         ))
-                      ) : apiTenants.length === 0 ? (
+                      ) : filteredTenants.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-3 sm:px-6 py-12 text-center">
                             <Users className="mx-auto h-12 w-12 text-gray-400" />
@@ -499,7 +578,7 @@ export default function InventoryPage() {
                           </td>
                         </tr>
                       ) : (
-                        apiTenants.map((tenant) => {
+                        filteredTenants.map((tenant) => {
                           const productCount = apiProducts.filter(p => p.tenantId === tenant.id).length;
                           const totalStock = apiProducts
                             .filter(p => p.tenantId === tenant.id)
@@ -547,11 +626,12 @@ export default function InventoryPage() {
                               <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                                 <div>
                                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    tenant.rentals.length > 0 && tenant.rentals[0].status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                                    tenant.rentals.length > 0 && tenant.rentals[0].status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-red-100 text-red-800'
+                                    calculateTenantStatus(tenant) === 'Active' ? 'bg-green-100 text-green-800' :
+                                    calculateTenantStatus(tenant) === 'Upcoming' ? 'bg-blue-100 text-blue-800' :
+                                    calculateTenantStatus(tenant) === 'Inactive' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
                                   }`}>
-                                    {tenant.rentals.length > 0 ? tenant.rentals[0].status : 'INACTIVE'}
+{calculateTenantStatus(tenant)}
                                   </span>
                                   {tenant.rentals.length > 0 && (
                                     <div className="mt-1">

@@ -35,6 +35,30 @@ export default function TenantProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
 
+  // Calculate tenant status based on rental dates and status (synced with admin logic)
+  const calculateTenantStatus = (tenant: AdminTenant): "Upcoming" | "Active" | "Inactive" | "Available" => {
+    if (!tenant.rentals || tenant.rentals.length === 0) {
+      return "Available"; // No rentals - tenant is approved but hasn't rented any cube
+    }
+    
+    // Get the most recent active rental or the first one
+    const activeRental = tenant.rentals.find(rental => rental.status === "ACTIVE") || tenant.rentals[0];
+    
+    if (!activeRental) return "Available";
+    
+    const now = new Date();
+    const startDate = new Date(activeRental.startDate);
+    const endDate = new Date(activeRental.endDate);
+    
+    if (activeRental.status === "ACTIVE" && now >= startDate && now <= endDate) {
+      return "Active"; // Currently renting and within rental period
+    } else if (now < startDate) {
+      return "Upcoming"; // Has rental but start date is in future
+    } else {
+      return "Inactive"; // Rental period has ended
+    }
+  };
+
   useEffect(() => {
     const loadTenantProducts = async () => {
       try {
@@ -54,7 +78,13 @@ export default function TenantProductsPage() {
           return;
         }
         
-        setTenant(foundTenant);
+        // Add calculated status to tenant
+        const tenantWithStatus = {
+          ...foundTenant,
+          calculatedStatus: calculateTenantStatus(foundTenant)
+        };
+        
+        setTenant(tenantWithStatus);
         setProducts(productsData);
       } catch (err) {
         console.error('Error loading tenant products:', err);
@@ -143,10 +173,25 @@ export default function TenantProductsPage() {
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center">
                   <User className="w-8 h-8 mr-3 text-blue-600" />
                   {tenant.businessName}
+                  <span className={`ml-4 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    (tenant as any).calculatedStatus === 'Active' ? 'bg-green-100 text-green-800' :
+                    (tenant as any).calculatedStatus === 'Upcoming' ? 'bg-blue-100 text-blue-800' :
+                    (tenant as any).calculatedStatus === 'Inactive' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {(tenant as any).calculatedStatus}
+                  </span>
                 </h1>
                 <p className="mt-2 text-gray-600">
                   {products.length} Products • {tenant.user.name}
                 </p>
+                {tenant.rentals && tenant.rentals.length > 0 && (
+                  <div className="mt-2 text-sm text-gray-500">
+                    <div>Cube: {tenant.rentals[0].cube.code} ({tenant.rentals[0].cube.size})</div>
+                    <div>Rental Period: {new Date(tenant.rentals[0].startDate).toLocaleDateString()} - {new Date(tenant.rentals[0].endDate).toLocaleDateString()}</div>
+                    <div>Daily Rent: ${tenant.rentals[0].dailyRent?.toLocaleString() || '0'}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -13,7 +13,7 @@
     "@types/three": "^0.179.0",
     "@types/uuid": "^10.0.0",
     "lucide-react": "^0.536.0",
-    "next": "14.0.0",
+    "next": "^14.2.32",
     "node-fetch": "^3.3.2",
     "react": "^18",
     "react-dom": "^18",
