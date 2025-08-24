@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import Navigation from '@/components/Navigation';
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import { authService } from '@/services/authService';
 
@@ -130,8 +131,9 @@ const RentalsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
             <div className="bg-white rounded-lg shadow p-6">
@@ -149,8 +151,9 @@ const RentalsPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <div className="flex items-center">
               <svg className="w-6 h-6 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,11 +177,12 @@ const RentalsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <Navigation />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="mb-6">
-          <button
+          {/* <button
             onClick={() => router.push('/admin')}
             className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
           >
@@ -186,7 +190,7 @@ const RentalsPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back to Admin Dashboard
-          </button>
+          </button> */}
           <h1 className="text-3xl font-bold text-gray-900">Rental Management</h1>
           <p className="text-gray-600 mt-2">Manage rental properties and payment histories</p>
         </div>
