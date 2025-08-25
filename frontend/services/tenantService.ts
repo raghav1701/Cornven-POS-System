@@ -2,7 +2,7 @@ import { authService } from "./authService";
 
 const API_BASE_URL = typeof window !== 'undefined' 
   ? `${window.location.origin}/api` 
-  : 'http://localhost:3001/api';
+  : 'https://cornven-pos-system.vercel.app/api';
 
 export interface AddTenantRequest {
   name: string;

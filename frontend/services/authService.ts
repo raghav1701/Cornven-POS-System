@@ -2,7 +2,7 @@ import { LoginCredentials, User } from "@/types/auth";
 
 const API_BASE_URL = typeof window !== 'undefined' 
   ? `${window.location.origin}/api` 
-  : 'http://localhost:3000/api';
+  : 'https://cornven-pos-system.vercel.app/api';
 
 export interface LoginResponse {
   token: string;

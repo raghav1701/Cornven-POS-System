@@ -1,8 +1,8 @@
 import { authService } from './authService';
 
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://cornven-pos-system.vercel.app' 
-  : '/api';
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? `${window.location.origin}/api` 
+  : 'https://cornven-pos-system.vercel.app/api';
 
 export interface TenantDetails {
   id: string;

@@ -55,6 +55,10 @@ export interface ProductApprovalRequest {
 }
 
 class AdminProductService {
+  private baseUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/api` 
+    : 'https://cornven-pos-system.vercel.app/api';
+
   private getAuthHeaders() {
     const token = localStorage.getItem('cornven_token');
     if (!token) {
@@ -74,7 +78,7 @@ class AdminProductService {
         queryParams.append('tenantId', tenantId);
       }
       
-      const url = `/api/admin/products${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const url = `${this.baseUrl}/admin/products${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       
       const response = await fetch(url, {
         method: 'GET',
@@ -159,7 +163,7 @@ class AdminProductService {
 
   async approveProduct(productId: string, approve: boolean): Promise<AdminProduct> {
     try {
-      const response = await fetch(`/api/admin/products/${productId}/approve`, {
+      const response = await fetch(`${this.baseUrl}/admin/products/${productId}/approve`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
