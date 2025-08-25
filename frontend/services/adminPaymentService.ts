@@ -1,7 +1,9 @@
 import { PaymentHistoryResponse, RecordPaymentRequest, RecordPaymentResponse } from '../types/payment';
 
 class AdminPaymentService {
-  private baseUrl = '/api';
+  private baseUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/api` 
+    : 'https://cornven-pos-system.vercel.app/api';
 
   private getAuthHeaders() {
     const token = localStorage.getItem('cornven_token');

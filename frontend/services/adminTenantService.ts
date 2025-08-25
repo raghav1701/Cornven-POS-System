@@ -45,7 +45,9 @@ export interface AdminTenant {
 }
 
 class AdminTenantService {
-  private baseUrl = '/api';
+  private baseUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/api` 
+    : 'https://cornven-pos-system.vercel.app/api';
 
   async getTenants(): Promise<AdminTenant[]> {
     try {
