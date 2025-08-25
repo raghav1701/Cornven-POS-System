@@ -21,7 +21,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(
     cors({
-      origin: ["https://pos-orpin-eight.vercel.app", "http://localhost:3000"],
+      origin: ["https://cornven.vercel.app/", "http://localhost:3000"],
       credentials: true,
     })
   );
