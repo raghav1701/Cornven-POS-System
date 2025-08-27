@@ -70,7 +70,8 @@ export default function Home() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
-      color: 'accent'
+      color: 'gray',
+      comingSoon: true
     },
     {
       name: 'Reports',
@@ -82,7 +83,8 @@ export default function Home() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 00-2-2z" />
         </svg>
       ),
-      color: 'success'
+      color: 'gray',
+      comingSoon: true
     },
     {
       name: 'Rentals',
@@ -175,39 +177,46 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Accessible Modules */}
-        {accessibleModules.length > 0 && (
+        {/* Active Modules */}
+        {accessibleModules.filter(module => !module.comingSoon).length > 0 && (
           <div className="mb-12">
             <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Your Modules</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-              {accessibleModules.map((module) => (
-                module.comingSoon ? (
-                  <div key={module.name} className="group cursor-not-allowed">
-                    <div className="bg-white rounded-xl shadow-lg p-8 opacity-75">
-                      <div className={`w-16 h-16 bg-${module.color}-100 rounded-lg flex items-center justify-center mb-6 text-${module.color}-600`}>
-                        {module.icon}
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-3">{module.name}</h3>
-                      <p className="text-gray-600 mb-4">{module.description}</p>
-                      <span className="text-orange-600 font-medium">
-                        Coming Soon
-                      </span>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              {accessibleModules.filter(module => !module.comingSoon).map((module) => (
+                <Link key={module.name} href={module.href} className="group">
+                  <div className="bg-white rounded-xl shadow-lg p-8 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
+                    <div className={`w-16 h-16 bg-${module.color}-100 rounded-lg flex items-center justify-center mb-6 group-hover:bg-${module.color}-200 transition-colors text-${module.color}-600`}>
+                      {module.icon}
                     </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">{module.name}</h3>
+                    <p className="text-gray-600 mb-4">{module.description}</p>
+                    <span className={`text-${module.color}-600 font-medium group-hover:text-${module.color}-700`}>
+                      Access Module →
+                    </span>
                   </div>
-                ) : (
-                  <Link key={module.name} href={module.href} className="group">
-                    <div className="bg-white rounded-xl shadow-lg p-8 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
-                      <div className={`w-16 h-16 bg-${module.color}-100 rounded-lg flex items-center justify-center mb-6 group-hover:bg-${module.color}-200 transition-colors text-${module.color}-600`}>
-                        {module.icon}
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-3">{module.name}</h3>
-                      <p className="text-gray-600 mb-4">{module.description}</p>
-                      <span className={`text-${module.color}-600 font-medium group-hover:text-${module.color}-700`}>
-                        Access Module →
-                      </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Coming Soon Modules */}
+        {accessibleModules.filter(module => module.comingSoon).length > 0 && (
+          <div className="mb-12">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              {accessibleModules.filter(module => module.comingSoon).map((module) => (
+                <div key={module.name} className="group cursor-not-allowed">
+                  <div className="bg-white rounded-xl shadow-lg p-8 opacity-75 border-2 border-gray-200">
+                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mb-6 text-gray-500">
+                      {module.icon}
                     </div>
-                  </Link>
-                )
+                    <h3 className="text-xl font-semibold text-gray-700 mb-3">{module.name}</h3>
+                    <p className="text-gray-500 mb-4">{module.description}</p>
+                    <span className="text-orange-600 font-medium">
+                      Coming Soon
+                    </span>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
