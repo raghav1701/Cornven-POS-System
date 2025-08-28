@@ -11,6 +11,7 @@ import adminTenantsRouter from "./routes/adminTenants";
 import adminProductsRouter from "./routes/adminProducts";
 import tenantRouter from "./routes/tenant";
 import adminBillingRouter from "./routes/adminBilling";
+import { startScheduledJobs } from "./services/scheduledJobs";
 
 dotenv.config();
 const PORT = Number(process.env.PORT) || 3001;
@@ -51,6 +52,14 @@ async function bootstrap() {
 
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    
+    // Start scheduled jobs for low stock checking
+    try {
+      startScheduledJobs();
+      console.log('✅ Scheduled jobs started successfully');
+    } catch (error) {
+      console.error('❌ Failed to start scheduled jobs:', error);
+    }
   });
 }
 
