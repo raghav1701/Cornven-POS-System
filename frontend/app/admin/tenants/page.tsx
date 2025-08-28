@@ -356,7 +356,7 @@ return tenant as Tenant;
         </div>
 
         {/* Tenant Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
           {tenants.length === 0 ? (
             <div className="col-span-full text-center py-12">
               <div className="text-gray-400 mb-4">
@@ -499,7 +499,7 @@ return tenant as Tenant;
         </div>
 
         {/* Statistics Cards */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="text-2xl font-bold text-primary-600">
               {tenants.length}
