@@ -82,6 +82,7 @@ model Product {
   category    String?
   sku         String?       @unique
   status      ProductStatus @default(PENDING)
+  lowStockThreshold Int?    @default(10)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -98,6 +99,7 @@ model ProductVariant {
   price      Float
   stock      Int
   sku        String?  @unique
+  lowStockThreshold Int? @default(5)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

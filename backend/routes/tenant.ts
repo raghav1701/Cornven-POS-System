@@ -6,6 +6,8 @@ import { summarizeRental } from "../utils/billing";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import { recomputeProductAggregates } from "../utils/products";
+import { checkAndSendLowStockAlert } from "../services/lowStockEmailService";
+import { checkAndSendOutOfStockAlert } from "../services/outOfStockEmailService";
 
 const router = Router();
 
@@ -56,17 +58,19 @@ router.get("/my-details", async (req, res) => {
  * Submit a new product for approval
  */
 router.post("/products", async (req, res) => {
-  const { name, description, category, sku, variants } = req.body as {
+  const { name, description, category, sku, lowStockThreshold, variants } = req.body as {
     name: string;
     description?: string;
     category?: string;
     sku?: string;
+    lowStockThreshold?: number;
     variants: Array<{
       color: string;
       size: string;
       price: number;
       stock: number;
       sku?: string;
+      lowStockThreshold?: number;
     }>;
   };
 
@@ -107,6 +111,7 @@ router.post("/products", async (req, res) => {
         // satisfy required schema fields:
         price: productPrice,
         stock: productStock,
+        lowStockThreshold,
 
         // create variant rows (requires ProductVariant in your schema)
         variants: {
@@ -116,6 +121,7 @@ router.post("/products", async (req, res) => {
             price: v.price,
             stock: v.stock,
             sku: v.sku,
+            lowStockThreshold: v.lowStockThreshold,
           })),
         },
 
@@ -163,12 +169,13 @@ router.put("/products/:id", async (_req, res) => {
 // POST /tenant/products/:productId/variants
 router.post("/products/:productId/variants", async (req, res) => {
   const { productId } = req.params;
-  const { color, size, price, stock, sku } = req.body as {
+  const { color, size, price, stock, sku, lowStockThreshold } = req.body as {
     color: string;
     size: string;
     price: number;
     stock: number;
     sku?: string;
+    lowStockThreshold?: number;
   };
 
   try {
@@ -183,7 +190,7 @@ router.post("/products/:productId/variants", async (req, res) => {
     }
 
     const variant = await prisma.productVariant.create({
-      data: { productId, color, size, price, stock, sku },
+      data: { productId, color, size, price, stock, sku, lowStockThreshold },
     });
 
     await prisma.inventoryLog.create({
@@ -193,7 +200,7 @@ router.post("/products/:productId/variants", async (req, res) => {
         userId: req.user!.userId,
         changeType: InventoryChangeType.VARIANT_CREATE,
         previousValue: null,
-        newValue: JSON.stringify({ color, size, price, stock, sku }),
+        newValue: JSON.stringify({ color, size, price, stock, sku, lowStockThreshold }),
       },
     });
 
@@ -219,7 +226,7 @@ router.post("/products/:productId/variants", async (req, res) => {
  */
 router.put("/products/:productId/variants/:variantId", async (req, res) => {
   const { productId, variantId } = req.params;
-  const { price, stock } = req.body as { price?: number; stock?: number };
+  const { price, stock, lowStockThreshold } = req.body as { price?: number; stock?: number; lowStockThreshold?: number };
 
   try {
     const variant = await prisma.productVariant.findUnique({
@@ -228,6 +235,7 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
         id: true,
         price: true,
         stock: true,
+        lowStockThreshold: true,
         product: { select: { id: true, tenant: { select: { userId: true } } } },
       },
     });
@@ -265,6 +273,17 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
         newValue: stock.toString(),
       });
     }
+    if (lowStockThreshold != null && lowStockThreshold !== variant.lowStockThreshold) {
+      updates.lowStockThreshold = lowStockThreshold;
+      logs.push({
+        productId,
+        productVariantId: variantId,
+        userId: req.user!.userId,
+        changeType: InventoryChangeType.VARIANT_STOCK_UPDATE, // reusing existing enum
+        previousValue: variant.lowStockThreshold?.toString() || 'null',
+        newValue: lowStockThreshold.toString(),
+      });
+    }
 
     if (!Object.keys(updates).length) {
       res.status(400).json({ error: "No changes to apply" });
@@ -280,6 +299,31 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
       await recomputeProductAggregates(productId);
       return u;
     });
+
+    // Check and send alerts if stock was updated
+    if (stock != null) {
+      try {
+        // Get tenant ID for out-of-stock alert
+        const tenantId = req.user!.userId;
+        const tenant = await prisma.tenant.findUnique({
+          where: { userId: tenantId },
+          select: { id: true }
+        });
+        
+        if (tenant) {
+          if (stock === 0) {
+            // When stock is exactly 0, only send out-of-stock alert
+            await checkAndSendOutOfStockAlert(tenant.id, productId, variantId);
+          } else {
+            // When stock is above 0, check for low stock alert
+            await checkAndSendLowStockAlert(productId, variantId);
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send stock alerts:', emailError);
+        // Don't fail the main operation if email fails
+      }
+    }
 
     res.json(updated);
   } catch (err) {
