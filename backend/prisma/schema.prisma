@@ -89,6 +89,23 @@ model Product {
   variants   ProductVariant[]
 }
 
+enum BarcodeType {
+  CODE128
+  EAN13
+  QR      
+}
+
+enum InventoryChangeType {
+  SUBMISSION
+  STOCK_UPDATE
+  PRICE_UPDATE
+  APPROVAL
+  VARIANT_CREATE
+  VARIANT_STOCK_UPDATE
+  VARIANT_PRICE_UPDATE
+  VARIANT_BARCODE_SET   
+}
+
 model ProductVariant {
   id         String   @id @default(uuid())
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -98,11 +115,14 @@ model ProductVariant {
   price      Float
   stock      Int
   sku        String?  @unique
+  barcode    String   @unique      
+  barcodeType BarcodeType @default(CODE128) 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([productId, color, size])  // one price/stock per color+size
+  @@unique([productId, color, size])
 }
+
 
 
 model InventoryLog {
@@ -150,16 +170,6 @@ enum ProductStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-enum InventoryChangeType {
-  SUBMISSION
-  STOCK_UPDATE
-  PRICE_UPDATE
-  APPROVAL
-  VARIANT_CREATE
-  VARIANT_STOCK_UPDATE
-  VARIANT_PRICE_UPDATE
 }
 
 enum Role {
