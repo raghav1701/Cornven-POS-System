@@ -11,6 +11,7 @@ import adminTenantsRouter from "./routes/adminTenants";
 import adminProductsRouter from "./routes/adminProducts";
 import tenantRouter from "./routes/tenant";
 import adminBillingRouter from "./routes/adminBilling";
+import variantsRouter from "./routes/variants";
 
 dotenv.config();
 const PORT = Number(process.env.PORT) || 3001;
@@ -48,6 +49,7 @@ async function bootstrap() {
   app.use("/admin", adminTenantsRouter);
   app.use("/admin", adminProductsRouter);
   app.use("/admin", adminBillingRouter);
+  app.use("/variants", variantsRouter);
 
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

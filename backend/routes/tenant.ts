@@ -1,16 +1,45 @@
 // src/routes/tenant.ts
 
 import { Router } from "express";
-import { Role, InventoryChangeType, ProductStatus } from "@prisma/client";
+import {
+  Role,
+  InventoryChangeType,
+  ProductStatus,
+  BarcodeType,
+} from "@prisma/client";
 import { summarizeRental } from "../utils/billing";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import { recomputeProductAggregates } from "../utils/products";
+import {
+  generateBarcode as genBC,
+  generateBarcode,
+  validateBarcode as valBC,
+  validateBarcode,
+} from "../utils/barcode";
+import { randomBytes } from "node:crypto";
 
 const router = Router();
 
 // apply tenant-only guard to *all* tenant routes
 router.use(...requireAuth(Role.TENANT));
+
+function fallbackGenerateBarcode(type: BarcodeType = "CODE128") {
+  // 20-char A–Z0–9, scanner-friendly, high entropy
+  const bytes = randomBytes(16);
+  return bytes
+    .toString("base64") // base64 => A–Z a–z 0–9 + / =
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "") // keep only A–Z 0–9
+    .slice(0, 20);
+}
+
+function fallbackValidateBarcode(
+  value: string,
+  _type: BarcodeType = "CODE128"
+) {
+  return /^[A-Z0-9\-_.]{6,32}$/.test(value);
+}
 
 /**
  * GET /tenant/my-details
@@ -77,8 +106,6 @@ router.post("/products", async (req, res) => {
         .json({ error: "name and at least one variant are required" });
       return;
     }
-
-    // basic validation
     for (const v of variants) {
       if (
         !v.color ||
@@ -93,10 +120,10 @@ router.post("/products", async (req, res) => {
       }
     }
 
-    // aggregate product-level price/stock to satisfy required fields
     const productPrice = Math.min(...variants.map((v) => v.price));
-    const productStock = variants.reduce((sum, v) => sum + v.stock, 0);
+    const productStock = variants.reduce((s, v) => s + v.stock, 0);
 
+    // Create the product with server-generated barcodes for variants
     const product = await prisma.product.create({
       data: {
         tenant: { connect: { userId: req.user!.userId } },
@@ -104,11 +131,8 @@ router.post("/products", async (req, res) => {
         description,
         category,
         sku,
-        // satisfy required schema fields:
         price: productPrice,
         stock: productStock,
-
-        // create variant rows (requires ProductVariant in your schema)
         variants: {
           create: variants.map((v) => ({
             color: v.color,
@@ -116,17 +140,16 @@ router.post("/products", async (req, res) => {
             price: v.price,
             stock: v.stock,
             sku: v.sku,
+            barcode: generateBarcode("CODE128"),
+            barcodeType: "CODE128",
           })),
         },
-
         status: ProductStatus.PENDING,
-
-        // single submission log (ties to product, not specific variant)
         logs: {
           create: [
             {
-              user: { connect: { id: req.user!.userId } }, // relation connect (not userId scalar)
-              changeType: InventoryChangeType.SUBMISSION, // enum that exists in your schema
+              user: { connect: { id: req.user!.userId } },
+              changeType: InventoryChangeType.SUBMISSION,
               previousValue: null,
               newValue: JSON.stringify({ variants }),
             },
@@ -139,11 +162,10 @@ router.post("/products", async (req, res) => {
     res.status(201).json(product);
   } catch (err: any) {
     console.error(err);
-    if (
-      err.code === "P2002" &&
-      String(err.meta?.target || "").includes("sku")
-    ) {
-      res.status(409).json({ error: "Duplicate SKU" });
+    if (err.code === "P2002") {
+      res
+        .status(409)
+        .json({ error: "Duplicate constraint (SKU or color+size or barcode)" });
     } else if (err.code === "P2003") {
       res.status(400).json({ error: "Tenant profile not found" });
     } else {
@@ -172,7 +194,6 @@ router.post("/products/:productId/variants", async (req, res) => {
   };
 
   try {
-    // ownership: product -> tenant.userId == JWT userId
     const prod = await prisma.product.findUnique({
       where: { id: productId },
       select: { tenant: { select: { userId: true } } },
@@ -182,34 +203,87 @@ router.post("/products/:productId/variants", async (req, res) => {
       return;
     }
 
-    const variant = await prisma.productVariant.create({
-      data: { productId, color, size, price, stock, sku },
-    });
-
-    await prisma.inventoryLog.create({
-      data: {
-        productId,
-        productVariantId: variant.id,
-        userId: req.user!.userId,
-        changeType: InventoryChangeType.VARIANT_CREATE,
-        previousValue: null,
-        newValue: JSON.stringify({ color, size, price, stock, sku }),
-      },
-    });
-
-    await recomputeProductAggregates(productId);
-    res.status(201).json(variant);
-  } catch (err: any) {
-    console.error(err);
-    if (err.code === "P2002") {
-      res
-        .status(409)
-        .json({
-          error: "Variant already exists (duplicate sku or color+size)",
+    // Always generate on server
+    let code = generateBarcode("CODE128");
+    let variant = null;
+    let tries = 0;
+    while (tries < 5) {
+      try {
+        variant = await prisma.productVariant.create({
+          data: {
+            productId,
+            color,
+            size,
+            price,
+            stock,
+            sku,
+            barcode: code,
+            barcodeType: "CODE128",
+          },
         });
-    } else {
-      res.status(400).json({ error: "Failed to create variant" });
+        break;
+      } catch (e: any) {
+        if (
+          e.code === "P2002" &&
+          String(e.meta?.target || "").includes("barcode")
+        ) {
+          code = generateBarcode("CODE128");
+          tries++;
+          continue;
+        }
+        if (e.code === "P2002") {
+          res.status(409).json({
+            error: "Variant already exists (duplicate sku or color+size)",
+          });
+          return;
+        }
+        throw e;
+      }
     }
+    if (!variant) {
+      res
+        .status(500)
+        .json({ error: "Failed to create variant (barcode collision)" });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.inventoryLog.create({
+        data: {
+          productId,
+          productVariantId: variant.id,
+          userId: req.user!.userId,
+          changeType: InventoryChangeType.VARIANT_CREATE,
+          previousValue: null,
+          newValue: JSON.stringify({
+            color,
+            size,
+            price,
+            stock,
+            sku,
+            barcode: variant.barcode,
+          }),
+        },
+      }),
+      prisma.inventoryLog.create({
+        data: {
+          productId,
+          productVariantId: variant.id,
+          userId: req.user!.userId,
+          changeType: InventoryChangeType.VARIANT_BARCODE_SET,
+          previousValue: null,
+          newValue: variant.barcode,
+        },
+      }),
+    ]);
+
+    // If you maintain product-level aggregates:
+    // await recomputeProductAggregates(productId);
+
+    res.status(201).json(variant);
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Failed to create variant" });
   }
 });
 
