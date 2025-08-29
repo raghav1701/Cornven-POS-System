@@ -22,6 +22,8 @@
   },
   "homepage": "https://github.com/rmit-fsd-2025-s1/s3976669-s4117080-a2#readme",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.878.0",
+    "@aws-sdk/s3-request-presigner": "^3.878.0",
     "@prisma/client": "^6.13.0",
     "bcrypt": "^6.0.0",
     "bwip-js": "^4.7.0",

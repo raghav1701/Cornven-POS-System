@@ -117,6 +117,8 @@ model ProductVariant {
   sku        String?  @unique
   barcode    String   @unique      
   barcodeType BarcodeType @default(CODE128) 
+  imageKey    String?    
+  imageUrl    String?    
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -133,8 +135,8 @@ model InventoryLog {
   user          User                @relation(fields: [userId], references: [id])
   userId        String
   changeType    InventoryChangeType
-  previousValue String? // e.g. old stock or price
-  newValue      String? // e.g. new stock or price
+  previousValue String? 
+  newValue      String? 
   createdAt     DateTime            @default(now())
 
   @@index([productId])
