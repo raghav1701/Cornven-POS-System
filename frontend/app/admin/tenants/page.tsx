@@ -53,10 +53,12 @@ export default function TenantsPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
-
+  const [filteredTenants, setFilteredTenants] = useState<Tenant[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   // Fetch tenants from API
   const fetchTenants = async () => {
@@ -149,6 +151,29 @@ export default function TenantsPage() {
       fetchTenants();
     }
   }, [isAuthenticated, isLoading, user, router]);
+
+  // Filter tenants based on search term and status
+  useEffect(() => {
+    let filtered = tenants;
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (tenant) =>
+          tenant.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tenant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tenant.cubeId.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by status
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((tenant) => tenant.status === statusFilter);
+    }
+
+    setFilteredTenants(filtered);
+  }, [tenants, searchTerm, statusFilter]);
 
   if (isLoading || loading) {
     return (
@@ -320,23 +345,19 @@ return tenant as Tenant;
 
       <div className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
         {/* Page Header */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            Tenant & Rental Management
-          </h1>
-          <p className="text-gray-600 mt-1 text-sm sm:text-base">
-            Manage tenants, leases, and rent collection for Cornven cube spaces
-          </p>
-        </div>
-
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-2 sm:space-y-0">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Tenant Management
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 space-y-4 sm:space-y-0">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              Tenant Management
+            </h1>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">
+              Manage tenants, leases, and rent collection for Cornven cube spaces
+            </p>
+          </div>
           <button
+            type="button"
             onClick={handleAddTenant}
-            className="btn-primary flex items-center space-x-2"
+            className="btn-primary flex items-center justify-center space-x-2 shrink-0"
           >
             <svg
               className="w-4 h-4"
@@ -355,40 +376,98 @@ return tenant as Tenant;
           </button>
         </div>
 
-        {/* Tenant Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
-          {tenants.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <div className="text-gray-400 mb-4">
-                <svg
-                  className="w-16 h-16 mx-auto"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
+        {/* Search and Filter Bar */}
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search Field */}
+            <div className="flex-1">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg
+                    className="h-5 w-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search tenants by name, business, email, or cube..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No tenants found
-              </h3>
-              <p className="text-gray-500 mb-4">
-                Get started by adding your first tenant.
-              </p>
-              <button
-                onClick={handleAddTenant}
-                className="btn-primary"
+            </div>
+
+            {/* Status Filter */}
+            <div className="sm:w-48">
+              <select
+                aria-label="Filter tenants by status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
               >
-                Add First Tenant
-              </button>
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Available">Available</option>
+                <option value="Upcoming">Upcoming</option>
+              </select>
+            </div>
+
+            {/* Results Count */}
+            <div className="flex items-center text-sm text-gray-500 whitespace-nowrap">
+              {filteredTenants.length} of {tenants.length} tenants
+            </div>
+          </div>
+        </div>
+
+        {/* Tenant Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 max-h-[calc(100vh-450px)] overflow-y-auto pr-2">
+          {filteredTenants.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-500">
+              <svg
+                className="w-12 h-12 mb-4 text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              <p className="text-lg font-medium mb-2">
+                {searchTerm || statusFilter !== "All"
+                  ? "No tenants found"
+                  : "No tenants yet"}
+              </p>
+              <p className="text-sm">
+                {searchTerm || statusFilter !== "All"
+                  ? "Try adjusting your search or filter criteria"
+                  : "Add your first tenant to get started"}
+              </p>
+              {!searchTerm && statusFilter === "All" && (
+                <button
+                  onClick={handleAddTenant}
+                  className="btn-primary mt-4"
+                >
+                  Add First Tenant
+                </button>
+              )}
             </div>
           ) : (
-            tenants.map((tenant) => (
+            filteredTenants.map((tenant) => (
               <div
                 key={tenant.id}
                 className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
@@ -502,25 +581,27 @@ return tenant as Tenant;
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="text-2xl font-bold text-primary-600">
-              {tenants.length}
+              {searchTerm || statusFilter !== "All" ? filteredTenants.length : tenants.length}
             </div>
-            <div className="text-sm text-gray-600">Total Tenants</div>
+            <div className="text-sm text-gray-600">
+              {searchTerm || statusFilter !== "All" ? "Filtered" : "Total"} Tenants
+            </div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="text-2xl font-bold text-green-600">
-              {tenants.filter((t) => t.status === "Active").length}
+              {(searchTerm || statusFilter !== "All" ? filteredTenants : tenants).filter((t) => t.status === "Active").length}
             </div>
             <div className="text-sm text-gray-600">Active Leases</div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="text-2xl font-bold text-blue-600">
-              {tenants.filter((t) => t.status === "Upcoming").length}
+              {(searchTerm || statusFilter !== "All" ? filteredTenants : tenants).filter((t) => t.status === "Upcoming").length}
             </div>
             <div className="text-sm text-gray-600">Upcoming Leases</div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="text-2xl font-bold text-red-600">
-              {tenants.filter((t) => t.status === "Inactive").length}
+              {(searchTerm || statusFilter !== "All" ? filteredTenants : tenants).filter((t) => t.status === "Inactive").length}
             </div>
             <div className="text-sm text-gray-600">Expired Leases</div>
           </div>
