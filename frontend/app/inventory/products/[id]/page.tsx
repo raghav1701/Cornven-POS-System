@@ -22,6 +22,7 @@ import { adminProductService, AdminProduct } from '@/services/adminProductServic
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from '@/utils/tenantStatus';
 
 export default function TenantProductsPage() {
   const { user } = useAuth();
@@ -35,29 +36,7 @@ export default function TenantProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
 
-  // Calculate tenant status based on rental dates and status (synced with admin logic)
-  const calculateTenantStatus = (tenant: AdminTenant): "Upcoming" | "Active" | "Inactive" | "Available" => {
-    if (!tenant.rentals || tenant.rentals.length === 0) {
-      return "Available"; // No rentals - tenant is approved but hasn't rented any cube
-    }
-    
-    // Get the most recent active rental or the first one
-    const activeRental = tenant.rentals.find(rental => rental.status === "ACTIVE") || tenant.rentals[0];
-    
-    if (!activeRental) return "Available";
-    
-    const now = new Date();
-    const startDate = new Date(activeRental.startDate);
-    const endDate = new Date(activeRental.endDate);
-    
-    if (activeRental.status === "ACTIVE" && now >= startDate && now <= endDate) {
-      return "Active"; // Currently renting and within rental period
-    } else if (now < startDate) {
-      return "Upcoming"; // Has rental but start date is in future
-    } else {
-      return "Inactive"; // Rental period has ended
-    }
-  };
+
 
   useEffect(() => {
     const loadTenantProducts = async () => {
@@ -173,13 +152,8 @@ export default function TenantProductsPage() {
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center">
                   <User className="w-8 h-8 mr-3 text-blue-600" />
                   {tenant.businessName}
-                  <span className={`ml-4 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    (tenant as any).calculatedStatus === 'Active' ? 'bg-green-100 text-green-800' :
-                    (tenant as any).calculatedStatus === 'Upcoming' ? 'bg-blue-100 text-blue-800' :
-                    (tenant as any).calculatedStatus === 'Inactive' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {(tenant as any).calculatedStatus}
+                  <span className={`ml-4 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColorClass((tenant as any).calculatedStatus)}`}>
+                    {getStatusDisplayText((tenant as any).calculatedStatus)}
                   </span>
                 </h1>
                 <p className="mt-2 text-gray-600">
