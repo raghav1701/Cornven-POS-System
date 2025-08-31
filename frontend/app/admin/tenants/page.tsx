@@ -8,7 +8,7 @@ import TenantForm from "@/components/TenantForm";
 import { Tenant, TenantFormData, RentPayment } from "@/types/tenant";
 import { getRolePermissions } from "@/data/mockAuth";
 import { adminTenantService } from "@/services/adminTenantService";
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from "@/utils/tenantStatus";
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from "@/utils/tenantStatus";
 
 
 
@@ -78,13 +78,23 @@ export default function TenantsPage() {
         console.log('First tenant sample:', apiTenants[0]);
       }
       
+      // Update rental statuses dynamically on frontend
+      const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(apiTenants);
+      console.log('Tenants with updated rental statuses:', tenantsWithUpdatedStatuses);
+      
       // Convert API tenants to the format expected by the UI
-      const convertedTenants: Tenant[] = apiTenants.map((apiTenant) => {
-        // Use unified status calculation
-        const status = calculateTenantStatus(apiTenant);
+      const convertedTenants: Tenant[] = tenantsWithUpdatedStatuses.map((apiTenant) => {
+        // Ensure rentals array exists before calculating status
+        const tenantWithRentals = {
+          ...apiTenant,
+          rentals: apiTenant.rentals || []
+        };
+        // Use unified status calculation with updated rental statuses
+        const status = calculateTenantStatus(tenantWithRentals);
         
         // Handle multiple rentals - get the most recent active one or the first one
-        const activeRental = apiTenant.rentals.find(rental => rental.status === "ACTIVE") || apiTenant.rentals[0];
+        const rentals = apiTenant.rentals || [];
+        const activeRental = rentals.find(rental => rental.status === "ACTIVE") || rentals[0];
 
         const convertedTenant = {
           id: apiTenant.id,
