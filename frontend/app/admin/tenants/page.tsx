@@ -8,6 +8,7 @@ import TenantForm from "@/components/TenantForm";
 import { Tenant, TenantFormData, RentPayment } from "@/types/tenant";
 import { getRolePermissions } from "@/data/mockAuth";
 import { adminTenantService } from "@/services/adminTenantService";
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from "@/utils/tenantStatus";
 
 
 
@@ -79,27 +80,11 @@ export default function TenantsPage() {
       
       // Convert API tenants to the format expected by the UI
       const convertedTenants: Tenant[] = apiTenants.map((apiTenant) => {
+        // Use unified status calculation
+        const status = calculateTenantStatus(apiTenant);
+        
         // Handle multiple rentals - get the most recent active one or the first one
         const activeRental = apiTenant.rentals.find(rental => rental.status === "ACTIVE") || apiTenant.rentals[0];
-        
-        let status: "Upcoming" | "Active" | "Inactive" | "Available" = "Available";
-        
-        if (activeRental) {
-          const now = new Date();
-          const startDate = new Date(activeRental.startDate);
-          const endDate = new Date(activeRental.endDate);
-          
-          if (activeRental.status === "ACTIVE" && now >= startDate && now <= endDate) {
-            status = "Active"; // Currently renting and within rental period
-          } else if (now < startDate) {
-            status = "Upcoming"; // Has rental but start date is in future
-          } else {
-            status = "Inactive"; // Rental period has ended
-          }
-        } else {
-          // No rentals - tenant is approved but hasn't rented any cube
-          status = "Available";
-        }
 
         const convertedTenant = {
           id: apiTenant.id,
@@ -476,17 +461,9 @@ return tenant as Tenant;
                 {/* Status Badge */}
                 <div className="flex justify-between items-start mb-4">
                   <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      tenant.status === "Active"
-                        ? "bg-green-100 text-green-800"
-                        : tenant.status === "Upcoming"
-                        ? "bg-blue-100 text-blue-800"
-                        : tenant.status === "Inactive"
-                        ? "bg-red-100 text-red-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColorClass(tenant.status)}`}
                   >
-                    {tenant.status}
+                    {getStatusDisplayText(tenant.status)}
                   </span>
                   <span className="text-sm font-medium text-gray-500">
                     Cube {tenant.cubeId}

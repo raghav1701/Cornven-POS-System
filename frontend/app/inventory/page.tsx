@@ -43,6 +43,7 @@ import { adminProductService, AdminProduct } from '@/services/adminProductServic
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from '@/utils/tenantStatus';
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -88,29 +89,7 @@ export default function InventoryPage() {
     await loadApiProducts();
   };
 
-  // Calculate tenant status based on rental dates and status (synced with admin logic)
-  const calculateTenantStatus = (tenant: AdminTenant): "Upcoming" | "Active" | "Inactive" | "Available" => {
-    if (!tenant.rentals || tenant.rentals.length === 0) {
-      return "Available"; // No rentals - tenant is approved but hasn't rented any cube
-    }
-    
-    // Get the most recent active rental or the first one
-    const activeRental = tenant.rentals.find(rental => rental.status === "ACTIVE") || tenant.rentals[0];
-    
-    if (!activeRental) return "Available";
-    
-    const now = new Date();
-    const startDate = new Date(activeRental.startDate);
-    const endDate = new Date(activeRental.endDate);
-    
-    if (activeRental.status === "ACTIVE" && now >= startDate && now <= endDate) {
-      return "Active"; // Currently renting and within rental period
-    } else if (now < startDate) {
-      return "Upcoming"; // Has rental but start date is in future
-    } else {
-      return "Inactive"; // Rental period has ended
-    }
-  };
+  // Use unified tenant status calculation from utils
 
   // Load API tenants
   const loadApiTenants = async () => {

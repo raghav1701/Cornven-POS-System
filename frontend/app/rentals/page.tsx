@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import { authService } from '@/services/authService';
+import { calculateTenantStatus } from '@/utils/tenantStatus';
 
 interface Rental {
   id: string;
@@ -50,9 +51,12 @@ const RentalsPage = () => {
             const endDate = new Date(rental.endDate);
             const lastPaymentDate = rental.lastPayment ? new Date(rental.lastPayment) : null;
             
-            // Determine status based on rental data
+            // Use unified tenant status calculation
+            const tenantStatus = calculateTenantStatus(tenant);
+            
+            // Determine rental payment status based on tenant status and payment history
             let status: 'active' | 'overdue' | '-' = '-';
-            if (rental.status === 'ACTIVE') {
+            if (tenantStatus === 'Active') {
               if (now <= endDate) {
                 // Check if payment is overdue (assuming monthly payments)
                 const nextDueDate = new Date(rental.startDate);
