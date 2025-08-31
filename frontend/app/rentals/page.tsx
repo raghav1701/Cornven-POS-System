@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import { authService } from '@/services/authService';
-import { calculateTenantStatus } from '@/utils/tenantStatus';
+import { calculateTenantStatus, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 interface Rental {
   id: string;
@@ -42,11 +42,14 @@ const RentalsPage = () => {
         // Fetch real data from API
         const tenants: AdminTenant[] = await adminTenantService.getTenants();
         
+        // Update rental statuses dynamically on frontend
+        const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(tenants);
+        
         // Convert tenant data to rental format
         const rentalsData: Rental[] = [];
         
-        tenants.forEach(tenant => {
-          tenant.rentals.forEach(rental => {
+        tenantsWithUpdatedStatuses.forEach(tenant => {
+          (tenant.rentals || []).forEach(rental => {
             const now = new Date();
             const endDate = new Date(rental.endDate);
             const lastPaymentDate = rental.lastPayment ? new Date(rental.lastPayment) : null;

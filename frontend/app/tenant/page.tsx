@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { tenantPortalService, TenantDetails, TenantProduct } from '@/services/tenantPortalService';
 import { authService } from '@/services/authService';
 import Snackbar from '@/components/Snackbar';
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from '@/utils/tenantStatus';
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 const TenantDashboard = () => {
   const { user, isLoading } = useAuth();
@@ -83,7 +83,10 @@ const TenantDashboard = () => {
         tenantPortalService.getTenantProducts()
       ]);
 
-      setTenantDetails(details);
+      // Update rental statuses dynamically on the frontend
+      const updatedDetails = details ? updateTenantRentalStatuses({ ...details, rentals: details.rentals || [] }) as TenantDetails : details;
+
+      setTenantDetails(updatedDetails);
       setTenantProducts(products);
       setFilteredProducts(products);
     } catch (err) {

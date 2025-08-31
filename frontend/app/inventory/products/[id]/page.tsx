@@ -22,7 +22,7 @@ import { adminProductService, AdminProduct } from '@/services/adminProductServic
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from '@/utils/tenantStatus';
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 export default function TenantProductsPage() {
   const { user } = useAuth();
@@ -57,11 +57,14 @@ export default function TenantProductsPage() {
           return;
         }
         
+        // Update rental statuses dynamically on the frontend
+        const updatedTenant = updateTenantRentalStatuses(foundTenant);
+        
         // Add calculated status to tenant
         const tenantWithStatus = {
-          ...foundTenant,
-          calculatedStatus: calculateTenantStatus(foundTenant)
-        };
+          ...updatedTenant,
+          calculatedStatus: calculateTenantStatus({ ...updatedTenant, rentals: updatedTenant.rentals || [] })
+        } as unknown as AdminTenant;
         
         setTenant(tenantWithStatus);
         setProducts(productsData);

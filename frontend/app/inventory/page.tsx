@@ -43,7 +43,7 @@ import { adminProductService, AdminProduct } from '@/services/adminProductServic
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText } from '@/utils/tenantStatus';
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -98,11 +98,14 @@ export default function InventoryPage() {
       const tenants = await adminTenantService.getAllTenants();
       console.log('Successfully fetched tenants:', tenants.length, 'items');
       
+      // Update rental statuses dynamically on frontend
+      const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(tenants);
+      
       // Add calculated status to each tenant
-      const tenantsWithStatus = tenants.map(tenant => ({
+      const tenantsWithStatus = tenantsWithUpdatedStatuses.map(tenant => ({
         ...tenant,
-        calculatedStatus: calculateTenantStatus(tenant)
-      }));
+        calculatedStatus: calculateTenantStatus({ ...tenant, rentals: tenant.rentals || [] })
+      })) as unknown as AdminTenant[];
       
       setApiTenants(tenantsWithStatus);
     } catch (error) {
@@ -604,13 +607,8 @@ export default function InventoryPage() {
                               </td>
                               <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                                 <div>
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    calculateTenantStatus(tenant) === 'Active' ? 'bg-green-100 text-green-800' :
-                                    calculateTenantStatus(tenant) === 'Upcoming' ? 'bg-blue-100 text-blue-800' :
-                                    calculateTenantStatus(tenant) === 'Inactive' ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-{calculateTenantStatus(tenant)}
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColorClass(calculateTenantStatus(tenant))}`}>
+                                    {getStatusDisplayText(calculateTenantStatus(tenant))}
                                   </span>
                                   {tenant.rentals.length > 0 && (
                                     <div className="mt-1">
