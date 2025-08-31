@@ -88,7 +88,7 @@ export default function Home() {
     },
     {
       name: 'Rentals',
-      href: '/admin/rentals',
+      href: '/rentals',
       permission: 'tenants',
       description: 'Manage rental properties and payment history',
       icon: (

@@ -123,17 +123,25 @@ export function updateTenantRentalStatuses(input: TenantWithRentals | TenantWith
 
 /**
  * Get status color class for UI display
- * @param status - Tenant status
+ * @param status - Tenant status or rental status string
  * @returns Tailwind CSS color classes
  */
-export const getStatusColorClass = (status: TenantStatus): string => {
-  switch (status) {
+export const getStatusColorClass = (status: TenantStatus | string): string => {
+  // Handle both TenantStatus and database rental status formats
+  const normalizedStatus = status.toUpperCase();
+  
+  switch (normalizedStatus) {
+    case "ACTIVE":
     case "Active":
       return "bg-green-100 text-green-800";
+    case "INACTIVE":
+    case "EXPIRED":
     case "Inactive":
       return "bg-red-100 text-red-800";
+    case "UPCOMING":
     case "Upcoming":
       return "bg-blue-100 text-blue-800";
+    case "AVAILABLE":
     case "Available":
       return "bg-gray-100 text-gray-800";
     default:
@@ -143,17 +151,25 @@ export const getStatusColorClass = (status: TenantStatus): string => {
 
 /**
  * Get status display text
- * @param status - Tenant status
+ * @param status - Tenant status or rental status string
  * @returns Human-readable status text
  */
-export const getStatusDisplayText = (status: TenantStatus): string => {
-  switch (status) {
+export const getStatusDisplayText = (status: TenantStatus | string): string => {
+  // Handle both TenantStatus and database rental status formats
+  const normalizedStatus = status.toUpperCase();
+  
+  switch (normalizedStatus) {
+    case "ACTIVE":
     case "Active":
       return "Active";
+    case "INACTIVE":
+    case "EXPIRED":
     case "Inactive":
       return "Inactive";
+    case "UPCOMING":
     case "Upcoming":
       return "Upcoming";
+    case "AVAILABLE":
     case "Available":
       return "Available";
     default:

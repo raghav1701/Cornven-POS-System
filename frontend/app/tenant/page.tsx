@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { tenantPortalService, TenantDetails, TenantProduct } from '@/services/tenantPortalService';
 import { authService } from '@/services/authService';
 import Snackbar from '@/components/Snackbar';
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
+import { getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 const TenantDashboard = () => {
   const { user, isLoading } = useAuth();
@@ -530,8 +530,8 @@ const TenantDashboard = () => {
                             </p>
                           </div>
                           <div className="text-right">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColorClass(calculateTenantStatus({ rentals: [rental] }))}`}>
-                              {getStatusDisplayText(calculateTenantStatus({ rentals: [rental] }))}
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColorClass(rental.status)}`}>
+                              {getStatusDisplayText(rental.status)}
                             </span>
                             <p className="text-sm text-gray-600 mt-1">Daily: ${rental.dailyRent}</p>
                           </div>

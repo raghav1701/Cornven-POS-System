@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import { authService } from '@/services/authService';
-import { calculateTenantStatus, updateTenantRentalStatuses } from '@/utils/tenantStatus';
+import { updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 interface Rental {
   id: string;
   tenantName: string;
   propertyAddress: string;
   rentAmount: number;
-  status: 'active' | 'overdue' | '-';
+  status: 'active' | 'overdue';
   lastPaymentDate?: string;
   nextDueDate: string;
 }
@@ -54,24 +54,20 @@ const RentalsPage = () => {
             const endDate = new Date(rental.endDate);
             const lastPaymentDate = rental.lastPayment ? new Date(rental.lastPayment) : null;
             
-            // Use unified tenant status calculation
-            const tenantStatus = calculateTenantStatus(tenant);
+            // Use rental status directly from backend
+            let status: 'active' | 'overdue' = 'active';
             
-            // Determine rental payment status based on tenant status and payment history
-            let status: 'active' | 'overdue' | '-' = '-';
-            if (tenantStatus === 'Active') {
-              if (now <= endDate) {
-                // Check if payment is overdue (assuming monthly payments)
-                const nextDueDate = new Date(rental.startDate);
-                nextDueDate.setMonth(nextDueDate.getMonth() + Math.floor((now.getTime() - new Date(rental.startDate).getTime()) / (30 * 24 * 60 * 60 * 1000)) + 1);
-                
-                if (lastPaymentDate) {
-                  const daysSinceLastPayment = Math.floor((now.getTime() - lastPaymentDate.getTime()) / (24 * 60 * 60 * 1000));
-                  status = daysSinceLastPayment > 35 ? 'overdue' : 'active'; // 35 days grace period
-                } else {
-                  const daysSinceStart = Math.floor((now.getTime() - new Date(rental.startDate).getTime()) / (24 * 60 * 60 * 1000));
-                  status = daysSinceStart > 35 ? 'overdue' : 'active';
-                }
+            // Map backend rental status to display status
+            if (rental.status) {
+              const backendStatus = rental.status.toLowerCase();
+              if (backendStatus === 'active') {
+                status = 'active';
+              } else if (backendStatus === 'expired') {
+                status = 'overdue';
+              } else if (backendStatus === 'upcoming') {
+                status = 'active'; // Show upcoming rentals as active
+              } else {
+                status = 'active'; // Default to active for any other status
               }
             }
             
@@ -280,7 +276,7 @@ const RentalsPage = () => {
                     </td> */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
-                        onClick={() => router.push(`/admin/rentals/${rental.id}/payments`)}
+                        onClick={() => router.push(`/rentals/${rental.id}/payments`)}
                         className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded transition-colors"
                       >
                         View Payments

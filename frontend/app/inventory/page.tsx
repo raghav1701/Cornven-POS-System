@@ -43,7 +43,7 @@ import { adminProductService, AdminProduct } from '@/services/adminProductServic
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
+import { getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -101,11 +101,8 @@ export default function InventoryPage() {
       // Update rental statuses dynamically on frontend
       const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(tenants);
       
-      // Add calculated status to each tenant
-      const tenantsWithStatus = tenantsWithUpdatedStatuses.map(tenant => ({
-        ...tenant,
-        calculatedStatus: calculateTenantStatus({ ...tenant, rentals: tenant.rentals || [] })
-      })) as unknown as AdminTenant[];
+      // Use tenants with updated rental statuses
+      const tenantsWithStatus = tenantsWithUpdatedStatuses as AdminTenant[];
       
       setApiTenants(tenantsWithStatus);
     } catch (error) {
@@ -130,7 +127,7 @@ export default function InventoryPage() {
                           tenant.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           tenant.user.email.toLowerCase().includes(searchQuery.toLowerCase());
       
-      const matchesStatus = !tenantStatusFilter || calculateTenantStatus(tenant) === tenantStatusFilter;
+      const matchesStatus = !tenantStatusFilter || (tenant.rentals.length > 0 && tenant.rentals[0].status === tenantStatusFilter);
       
       return matchesSearch && matchesStatus;
     });
@@ -607,8 +604,8 @@ export default function InventoryPage() {
                               </td>
                               <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                                 <div>
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColorClass(calculateTenantStatus(tenant))}`}>
-                                    {getStatusDisplayText(calculateTenantStatus(tenant))}
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColorClass(tenant.rentals.length > 0 ? tenant.rentals[0].status : 'Available')}`}>
+                                    {getStatusDisplayText(tenant.rentals.length > 0 ? tenant.rentals[0].status : 'Available')}
                                   </span>
                                   {tenant.rentals.length > 0 && (
                                     <div className="mt-1">
