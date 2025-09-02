@@ -72,21 +72,17 @@ model Rental {
 }
 
 model Product {
-  id          String        @id @default(uuid())
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  id          String   @id @default(uuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   tenantId    String
   name        String
   description String?
-  price       Float
-  stock       Int
   category    String?
-  sku         String?       @unique
-  status      ProductStatus @default(PENDING)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  logs InventoryLog[]
-  variants   ProductVariant[]
+  logs     InventoryLog[]
+  variants ProductVariant[]
 }
 
 enum BarcodeType {
@@ -103,7 +99,7 @@ enum InventoryChangeType {
   VARIANT_CREATE
   VARIANT_STOCK_UPDATE
   VARIANT_PRICE_UPDATE
-  VARIANT_BARCODE_SET   
+  VARIANT_STATUS_UPDATE   
 }
 
 model ProductVariant {
@@ -114,11 +110,10 @@ model ProductVariant {
   size       String
   price      Float
   stock      Int
-  sku        String?  @unique
   barcode    String   @unique      
   barcodeType BarcodeType @default(CODE128) 
+  status      VariantStatus @default(PENDING)
   imageKey    String?    
-  imageUrl    String?    
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -168,7 +163,7 @@ enum PaymentMethod {
 }
 
 
-enum ProductStatus {
+enum VariantStatus {
   PENDING
   APPROVED
   REJECTED
