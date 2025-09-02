@@ -58,7 +58,6 @@ router.get(
         size: variant.size,
         price: variant.price,
         stock: variant.stock,
-        sku: variant.sku,
         barcode: variant.barcode,
         barcodeType: variant.barcodeType,
         tenant,
