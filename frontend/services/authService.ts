@@ -11,6 +11,8 @@ export interface LoginResponse {
     name: string;
     email: string;
     role: string;
+    tenantId?: string;
+    artistId?: string;
   };
 }
 
@@ -52,6 +54,8 @@ class AuthService {
       name: response.user.name,
       role: this.mapApiRoleToUserRole(response.user.role),
       createdAt: new Date().toISOString(), // API doesn't provide this, so we'll use current time
+      tenantId: response.user.tenantId, // Include tenantId from API response
+      artistId: response.user.artistId, // Include artistId from API response
     };
 
     return {

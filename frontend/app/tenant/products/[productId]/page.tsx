@@ -180,7 +180,7 @@ const ProductDetailsPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Product Details</h3>
-              <p><span className="font-medium">SKU:</span> {product.sku}</p>
+
               <p><span className="font-medium">Category:</span> {product.category}</p>
               <p><span className="font-medium">Created:</span> {new Date(product.createdAt).toLocaleDateString()}</p>
             </div>
@@ -241,7 +241,7 @@ const ProductDetailsPage = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                    
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -258,7 +258,7 @@ const ProductDetailsPage = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{variant.size}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${variant.price?.toFixed(2)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{variant.stock}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{variant.sku}</td>
+
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {variant.createdAt ? new Date(variant.createdAt).toLocaleDateString() : 'N/A'}
                         </td>

@@ -80,7 +80,7 @@ export default function TenantProductsPage() {
   }, [params.id]);
 
   const getStatusColor = (status: string) => {
-    switch (status.toUpperCase()) {
+    switch (status?.toUpperCase() || 'PENDING') {
       case 'APPROVED':
         return 'bg-green-100 text-green-800';
       case 'PENDING':

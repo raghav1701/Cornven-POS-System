@@ -12,7 +12,6 @@ interface Variant {
   size: string;
   price: number;
   stock: number;
-  sku: string;
   createdAt?: string;
 }
 
@@ -189,7 +188,7 @@ const VariantEditPage = () => {
           </button>
           <h1 className="text-3xl font-bold text-gray-900">Edit Variant</h1>
           <p className="mt-2 text-gray-600">
-            {variant.color} - {variant.size} | SKU: {variant.sku}
+            {variant.color} - {variant.size}
           </p>
         </div>
 
@@ -202,7 +201,7 @@ const VariantEditPage = () => {
               <p><span className="font-medium">Product:</span> {product.name}</p>
               <p><span className="font-medium">Color:</span> {variant.color}</p>
               <p><span className="font-medium">Size:</span> {variant.size}</p>
-              <p><span className="font-medium">SKU:</span> {variant.sku}</p>
+
               {variant.createdAt && (
                 <p><span className="font-medium">Created:</span> {new Date(variant.createdAt).toLocaleDateString()}</p>
               )}
