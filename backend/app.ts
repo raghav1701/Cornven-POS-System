@@ -12,6 +12,8 @@ import adminProductsRouter from "./routes/adminProducts";
 import tenantRouter from "./routes/tenant";
 import adminBillingRouter from "./routes/adminBilling";
 import variantsRouter from "./routes/variants";
+import { stockMonitorService } from "./services/stockMonitorService";
+import { emailService } from "./services/emailService";
 
 dotenv.config();
 const PORT = Number(process.env.PORT) || 3001;
@@ -46,10 +48,22 @@ async function bootstrap() {
   app.use("/admin", adminTenantsRouter);
   app.use("/admin", adminProductsRouter);
   app.use("/tenant", tenantRouter);
-  app.use("/admin", adminTenantsRouter);
-  app.use("/admin", adminProductsRouter);
   app.use("/admin", adminBillingRouter);
   app.use("/variants", variantsRouter);
+
+  // ─── Initialize Email Service ────────────────────────────────────────────────────
+  try {
+    await emailService.initialize();
+  } catch (error) {
+    console.error('❌ Failed to initialize email service:', error);
+  }
+
+  // ─── Start Automatic Stock Monitoring ───────────────────────────────────────────
+  try {
+    await stockMonitorService.start();
+  } catch (error) {
+    console.error('❌ Failed to start stock monitoring service:', error);
+  }
 
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
