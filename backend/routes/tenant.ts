@@ -5,6 +5,7 @@ import { summarizeRental } from "../utils/billing";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import { generateBarcode } from "../utils/barcode";
+import { stockUpdateService } from "../services/stockUpdateService";
 
 const router = Router();
 
@@ -308,6 +309,20 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
       return u;
     });
 
+    // Check for low stock and send email notification if stock was updated
+    if (stock != null && stock !== variant.stock) {
+      try {
+        await stockUpdateService.updateStock({
+          variantId,
+          newStock: stock,
+          reason: 'manual_update'
+        });
+      } catch (emailError) {
+        console.error('Failed to send stock alert email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -443,5 +458,6 @@ router.get("/my-payments", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch payments" });
   }
 });
+;
 
 export default router;

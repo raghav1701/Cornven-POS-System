@@ -110,6 +110,7 @@ model ProductVariant {
   size       String
   price      Float
   stock      Int
+  lowStockThreshold Int @default(10)
   barcode    String   @unique      
   barcodeType BarcodeType @default(CODE128) 
   status      VariantStatus @default(PENDING)
