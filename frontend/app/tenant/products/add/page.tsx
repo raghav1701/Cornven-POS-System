@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { tenantPortalService, AddProductRequest, ProductVariant } from '@/services/tenantPortalService';
+import { tenantPortalService, AddProductRequest, ProductVariantRequest } from '@/services/tenantPortalService';
 import { ArrowLeft, Plus, Trash2, Upload, X, Image as ImageIcon } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 
@@ -16,13 +16,11 @@ export default function AddProductPage() {
     name: '',
     description: '',
     category: '',
-    sku: '',
     variants: [{
       color: '',
       size: '',
       price: 0,
-      stock: 0,
-      sku: ''
+      stock: 0
     }]
   });
   
@@ -40,7 +38,7 @@ export default function AddProductPage() {
     }));
   };
 
-  const handleVariantChange = (index: number, field: keyof ProductVariant, value: string | number) => {
+  const handleVariantChange = (index: number, field: keyof ProductVariantRequest, value: string | number) => {
     setFormData(prev => ({
       ...prev,
       variants: prev.variants.map((variant, i) => 
@@ -56,8 +54,7 @@ export default function AddProductPage() {
         color: '',
         size: '',
         price: 0,
-        stock: 0,
-        sku: ''
+        stock: 0
       }]
     }));
   };
@@ -132,11 +129,11 @@ export default function AddProductPage() {
     
     try {
       // Validate form
-      if (!formData.name || !formData.description || !formData.category || !formData.sku) {
+      if (!formData.name || !formData.description || !formData.category) {
         throw new Error('Please fill in all required fields');
       }
       
-      if (formData.variants.some(v => !v.color || !v.size || !v.sku || v.price <= 0 || v.stock < 0)) {
+      if (formData.variants.some(v => !v.color || !v.size || v.price <= 0 || v.stock < 0)) {
         throw new Error('Please complete all variant information');
       }
       
@@ -144,7 +141,6 @@ export default function AddProductPage() {
         name: formData.name,
         description: formData.description,
         category: formData.category,
-        sku: formData.sku,
         variants: formData.variants
       };
       
@@ -218,20 +214,7 @@ export default function AddProductPage() {
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  SKU *
-                </label>
-                <input
-                  type="text"
-                  name="sku"
-                  value={formData.sku}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Category *
@@ -422,18 +405,7 @@ export default function AddProductPage() {
                       />
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Variant SKU *
-                      </label>
-                      <input
-                        type="text"
-                        value={variant.sku}
-                        onChange={(e) => handleVariantChange(index, 'sku', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
+
                   </div>
                 </div>
               ))}

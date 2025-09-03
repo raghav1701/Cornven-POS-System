@@ -42,16 +42,28 @@ export interface TenantDetails {
   }>;
 }
 
-export interface ProductVariant {
-  id?: string;
-  productId?: string;
+// Interface for variant in API request (what we send)
+export interface ProductVariantRequest {
   color: string;
   size: string;
   price: number;
   stock: number;
-  sku: string;
-  createdAt?: string;
-  updatedAt?: string;
+}
+
+// Interface for variant in API response (what we receive)
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  color: string;
+  size: string;
+  price: number;
+  stock: number;
+  barcode: string;
+  barcodeType: string;
+  status: string;
+  imageKey: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TenantProduct {
@@ -59,14 +71,10 @@ export interface TenantProduct {
   tenantId: string;
   name: string;
   description: string;
-  price: number;
-  stock: number;
   category: string;
-  sku: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
   updatedAt: string;
-  variants?: ProductVariant[];
+  variants: ProductVariant[];
   logs?: Array<{
     id: string;
     productId: string;
@@ -82,8 +90,7 @@ export interface AddProductRequest {
   name: string;
   description: string;
   category: string;
-  sku: string;
-  variants: ProductVariant[];
+  variants: ProductVariantRequest[];
 }
 
 export interface UpdateStockRequest {

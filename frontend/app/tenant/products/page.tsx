@@ -3,25 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getRolePermissions } from '@/data/mockAuth';
-import { mockProducts, getProductsByTenant, mockCategories, generateBarcode } from '@/data/mockProducts';
-import { Product, ProductFormData } from '@/types/product';
+import { tenantPortalService, TenantProduct } from '@/services/tenantPortalService';
+import Navigation from '@/components/Navigation';
 
 const TenantProducts = () => {
   const { user, isLoading } = useAuth();
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<TenantProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [formData, setFormData] = useState<ProductFormData>({
+  const [editingProduct, setEditingProduct] = useState<TenantProduct | null>(null);
+  const [formData, setFormData] = useState({
     name: '',
-    price: 0,
-    stock: 0,
-    category: '',
     description: '',
-    commissionRate: 15,
-    deliveryMethod: 'handover',
-    lowStockThreshold: 5,
+    category: '',
   });
 
   useEffect(() => {
@@ -31,18 +26,22 @@ const TenantProducts = () => {
         return;
       }
 
-      const permissions = getRolePermissions(user.role);
-      if (!permissions.includes('tenant-products')) {
-        router.push('/');
-        return;
-      }
-
-      if (user.tenantId) {
-        const tenantProducts = getProductsByTenant(user.tenantId);
-        setProducts(tenantProducts);
-      }
+      // Load tenant products from API
+      loadProducts();
     }
   }, [user, isLoading, router]);
+
+  const loadProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const tenantProducts = await tenantPortalService.getTenantProducts();
+      setProducts(tenantProducts);
+    } catch (error) {
+      console.error('Failed to load products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -54,67 +53,14 @@ const TenantProducts = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!user?.tenantId) return;
-
-    if (editingProduct) {
-      // Update existing product
-      const updatedProduct: Product = {
-        ...editingProduct,
-        ...formData,
-        updatedAt: new Date().toISOString(),
-      };
-      
-      setProducts(prev => prev.map(p => p.id === editingProduct.id ? updatedProduct : p));
-      setEditingProduct(null);
-    } else {
-      // Create new product
-      const newProduct: Product = {
-        id: `prod-${Date.now()}`,
-        barcode: generateBarcode(),
-        ...formData,
-        tenantId: user.tenantId,
-        tenantName: user.name,
-        status: 'pending', // Requires admin approval
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: user.id,
-        sku: `SKU-${user.tenantId}-${Date.now()}`,
-        weight: 0.1,
-        dimensions: { length: 10, width: 10, height: 2 },
-        tags: ['tenant-created']
-      };
-      
-      setProducts(prev => [...prev, newProduct]);
-    }
-
-    // Reset form
-    setFormData({
-      name: '',
-      price: 0,
-      stock: 0,
-      category: '',
-      description: '',
-      commissionRate: 15,
-      deliveryMethod: 'handover',
-      lowStockThreshold: 5,
-    });
+    // This page is for viewing products only
+    // Product creation is handled in the add product page
     setShowAddForm(false);
   };
 
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      price: product.price,
-      stock: product.stock,
-      category: product.category,
-      description: product.description || '',
-      commissionRate: product.commissionRate,
-      deliveryMethod: product.deliveryMethod,
-      lowStockThreshold: product.lowStockThreshold,
-    });
-    setShowAddForm(true);
+  const handleEdit = (product: TenantProduct) => {
+    // Navigate to product detail page for editing
+    router.push(`/tenant/products/${product.id}`);
   };
 
   const handleCancel = () => {
@@ -122,13 +68,8 @@ const TenantProducts = () => {
     setEditingProduct(null);
     setFormData({
       name: '',
-      price: 0,
-      stock: 0,
-      category: '',
       description: '',
-      commissionRate: 15,
-      deliveryMethod: 'handover',
-      lowStockThreshold: 5,
+      category: '',
     });
   };
 
@@ -140,13 +81,34 @@ const TenantProducts = () => {
     );
   }
 
-  if (!user || !user.tenantId) {
-    return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">Please log in to access this page.</p>
+        </div>
+      </div>
+    );
   }
 
+  // For users without tenantId, show a message
+  // if (!user.tenantId) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center">
+  //       <div className="text-center">
+  //         <h2 className="text-xl font-semibold text-gray-900 mb-2">Tenant Access Required</h2>
+  //         <p className="text-gray-600">This page is only accessible to tenant users.</p>
+  //         <p className="text-sm text-gray-500 mt-2">User ID: {user.id} | Role: {user.role}</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <Navigation />
+      <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
           <div>
@@ -211,91 +173,15 @@ const TenantProducts = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select Category</option>
-                  {mockCategories.map(cat => (
-                    <option key={cat.id} value={cat.name}>{cat.name}</option>
-                  ))}
+                  <option value="Electronics">Electronics</option>
+                  <option value="Clothing">Clothing</option>
+                  <option value="Food">Food</option>
+                  <option value="Books">Books</option>
                 </select>
               </div>
 
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                  Price ($) *
-                </label>
-                <input
-                  type="number"
-                  id="price"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  min="0"
-                  step="0.01"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="stock" className="block text-sm font-medium text-gray-700 mb-1">
-                  Initial Stock *
-                </label>
-                <input
-                  type="number"
-                  id="stock"
-                  name="stock"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  min="0"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="commissionRate" className="block text-sm font-medium text-gray-700 mb-1">
-                  Commission Rate (%)
-                </label>
-                <input
-                  type="number"
-                  id="commissionRate"
-                  name="commissionRate"
-                  value={formData.commissionRate}
-                  onChange={handleInputChange}
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-1">
-                  Low Stock Alert Threshold
-                </label>
-                <input
-                  type="number"
-                  id="lowStockThreshold"
-                  name="lowStockThreshold"
-                  value={formData.lowStockThreshold}
-                  onChange={handleInputChange}
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="deliveryMethod" className="block text-sm font-medium text-gray-700 mb-1">
-                  Delivery Method
-                </label>
-                <select
-                  id="deliveryMethod"
-                  name="deliveryMethod"
-                  value={formData.deliveryMethod}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="handover">Handover</option>
-                  <option value="consignment">Consignment</option>
-                </select>
+              <div className="text-center py-4 text-gray-500">
+                This form is for legacy purposes only. Please use the "Submit for Approval" button to add new products.
               </div>
 
               <div className="md:col-span-2">
@@ -337,11 +223,19 @@ const TenantProducts = () => {
             <h3 className="text-lg font-medium text-gray-900">Product Listings</h3>
           </div>
           
-          {products.length > 0 ? (
+          {productsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Loading products...</span>
+            </div>
+          ) : products.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Image
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Product
                     </th>
@@ -349,10 +243,13 @@ const TenantProducts = () => {
                       Category
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Price
+                      Variants
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stock
+                      Base Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Stock
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -363,39 +260,59 @@ const TenantProducts = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {products.map((product) => (
+                  {products.map((product) => {
+                    // Find the first variant with an image
+                    const variantWithImage = product.variants?.find(variant => variant.imageKey);
+                    const imageUrl = variantWithImage?.imageKey 
+                      ? `https://cornven-pos-system.s3.ap-southeast-2.amazonaws.com/${variantWithImage.imageKey}`
+                      : null;
+                    
+                    return (
                     <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                          {imageUrl ? (
+                            <img 
+                              src={imageUrl} 
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <div className={`${imageUrl ? 'hidden' : ''} text-gray-400`}>
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                          <div className="text-sm text-gray-500">{product.barcode}</div>
+                          <div className="text-sm text-gray-500">{product.description || 'No description'}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {product.category}
+                        {product.category || 'Uncategorized'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${product.price.toFixed(2)}
+                        {product.variants?.length || 0} variants
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {product.variants?.[0]?.price ? `$${product.variants[0].price.toFixed(2)}` : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-medium ${
-                          product.stock <= product.lowStockThreshold ? 'text-red-600' : 'text-gray-900'
-                        }`}>
-                          {product.stock} units
+                        <span className="text-sm font-medium text-gray-900">
+                          {product.variants?.reduce((total, variant) => total + variant.stock, 0) || 0} units
                         </span>
-                        {product.stock <= product.lowStockThreshold && (
-                          <div className="text-xs text-red-500">Low Stock</div>
-                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          product.status === 'active' 
-                            ? 'bg-green-100 text-green-800'
-                            : product.status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {product.status}
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          Active
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -406,21 +323,15 @@ const TenantProducts = () => {
                           Edit
                         </button>
                         <button
-                          onClick={() => {
-                            // Update stock functionality
-                            const newStock = prompt(`Update stock for ${product.name} (current: ${product.stock}):`);
-                            if (newStock !== null && !isNaN(Number(newStock))) {
-                              const updatedProduct = { ...product, stock: Number(newStock), updatedAt: new Date().toISOString() };
-                              setProducts(prev => prev.map(p => p.id === product.id ? updatedProduct : p));
-                            }
-                          }}
+                          onClick={() => router.push(`/tenant/products/${product.id}`)}
                           className="text-green-600 hover:text-green-900"
                         >
-                          Update Stock
+                          View Details
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

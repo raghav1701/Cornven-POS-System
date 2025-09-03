@@ -8,6 +8,10 @@ export interface ProductVariant {
   price: number;
   stock: number;
   sku: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  barcode?: string;
+  barcodeType?: string;
+  imageKey?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -189,6 +193,28 @@ class AdminProductService {
 
   async getAllProducts(): Promise<AdminProduct[]> {
     return this.getProducts();
+  }
+
+  async approveVariant(productId: string, variantId: string, approve: boolean): Promise<any> {
+    const token = localStorage.getItem('cornven_token');
+    const response = await fetch(`https://cornven-pos-system.vercel.app/admin/variants/${variantId}/approve`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ approve }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update variant approval');
+    }
+
+    return response.json();
+  }
+
+  async rejectVariant(productId: string, variantId: string): Promise<any> {
+    return this.approveVariant(productId, variantId, false);
   }
 }
 

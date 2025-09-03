@@ -270,7 +270,7 @@ const AdminProducts = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status.toUpperCase()) {
+    switch (status?.toUpperCase() || 'PENDING') {
       case 'ACTIVE': return 'bg-green-100 text-green-800';
       case 'PENDING': return 'bg-yellow-100 text-yellow-800';
       case 'APPROVED': return 'bg-green-100 text-green-800';
@@ -278,6 +278,55 @@ const AdminProducts = () => {
       case 'INACTIVE': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getVariantStatusCounts = (product: AdminProduct | Product) => {
+    // For regular Product type (logs tab), use product status
+    if (!('variants' in product) || !product.variants || product.variants.length === 0) {
+      return {
+        pending: product.status === 'PENDING' ? 1 : 0,
+        approved: product.status === 'APPROVED' ? 1 : 0,
+        rejected: product.status === 'REJECTED' ? 1 : 0
+      };
+    }
+
+    // For AdminProduct type (approvals tab), count variant statuses
+    return product.variants.reduce(
+      (counts, variant) => {
+        if (variant.status === 'PENDING') counts.pending++;
+        else if (variant.status === 'APPROVED') counts.approved++;
+        else if (variant.status === 'REJECTED') counts.rejected++;
+        return counts;
+      },
+      { pending: 0, approved: 0, rejected: 0 }
+    );
+  };
+
+  const renderVariantStatusBadges = (product: AdminProduct | Product) => {
+    const counts = getVariantStatusCounts(product as AdminProduct);
+    
+    return (
+      <div className="flex flex-wrap gap-1">
+        {counts.pending > 0 && (
+          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+            <div className="w-2 h-2 bg-orange-500 rounded-full mr-1"></div>
+            {counts.pending}
+          </span>
+        )}
+        {counts.approved > 0 && (
+          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+            <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+            {counts.approved}
+          </span>
+        )}
+        {counts.rejected > 0 && (
+          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+            <div className="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
+            {counts.rejected}
+          </span>
+        )}
+      </div>
+    );
   };
 
   const getStockStatus = (stock: number) => {
@@ -597,7 +646,7 @@ const AdminProducts = () => {
                               ) : (
                                 <div>
                                   <div className="font-medium">Base Product</div>
-                                  <div className="text-xs text-gray-500">${product.price.toFixed(2)}</div>
+                                  <div className="text-xs text-gray-500">${(product.price || 0).toFixed(2)}</div>
                                 </div>
                               )}
                             </div>
@@ -606,9 +655,7 @@ const AdminProducts = () => {
                             {product.tenant.businessName}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>
-                              {product.status}
-                            </span>
+                            {renderVariantStatusBadges(product)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {product.status === 'PENDING' ? (
@@ -669,9 +716,9 @@ const AdminProducts = () => {
                             <p className="text-xs text-gray-500 mt-1 truncate">{product.description}</p>
                           </div>
                         </div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)} ml-2 flex-shrink-0`}>
-                          {product.status}
-                        </span>
+                        <div className="ml-2 flex-shrink-0">
+                          {renderVariantStatusBadges(product)}
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 mb-3">
@@ -914,7 +961,7 @@ const AdminProducts = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            ${product.price.toFixed(2)}
+                            ${(product.price || 0).toFixed(2)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">{product.stock} units</div>
@@ -924,9 +971,7 @@ const AdminProducts = () => {
                             {product.tenantName}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>
-                              {product.status}
-                            </span>
+                            {renderVariantStatusBadges(product)}
                           </td>
                         </tr>
                       );
@@ -946,9 +991,9 @@ const AdminProducts = () => {
                           <h4 className="text-sm font-medium text-gray-900 truncate">{product.name}</h4>
                           <p className="text-xs text-gray-500 mt-1">Barcode: {product.barcode}</p>
                         </div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)} ml-2`}>
-                          {product.status}
-                        </span>
+                        <div className="ml-2">
+                          {renderVariantStatusBadges(product)}
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 mb-3">
@@ -960,7 +1005,7 @@ const AdminProducts = () => {
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Price</p>
-                          <p className="text-sm font-medium text-gray-900">${product.price.toFixed(2)}</p>
+                          <p className="text-sm font-medium text-gray-900">${(product.price || 0).toFixed(2)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Stock</p>
