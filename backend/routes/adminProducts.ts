@@ -4,6 +4,8 @@ import { Router } from "express";
 import { Role, VariantStatus } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
+import { emailService } from "../services/emailService";
+import { EmailTemplates } from "../templates/emailTemplates";
 
 const router = Router();
 
@@ -114,6 +116,21 @@ router.put("/variants/:id/approve", async (req, res) => {
         size: true,
         status: true,
         updatedAt: true,
+        product: {
+          select: {
+            name: true,
+            tenant: {
+              select: {
+                user: {
+                  select: {
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -128,6 +145,28 @@ router.put("/variants/:id/approve", async (req, res) => {
         newValue: newStatus,
       },
     });
+
+    // Send email notification to tenant
+    try {
+      const emailTemplate = EmailTemplates.productApprovalAlert({
+        tenantName: updated.product.tenant.user.name,
+        productName: updated.product.name,
+        variantDetails: `${updated.color} / ${updated.size}`,
+        status: newStatus,
+        approvalDate: updated.updatedAt.toLocaleDateString(),
+      });
+      
+      await emailService.sendEmail({
+        to: updated.product.tenant.user.email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+        text: emailTemplate.text,
+      });
+      console.log(`📧 Product approval notification sent to ${updated.product.tenant.user.email}`);
+    } catch (emailError) {
+      console.error('Failed to send approval email:', emailError);
+      // Don't fail the request if email fails
+    }
 
     res.json(updated);
   } catch (err) {
