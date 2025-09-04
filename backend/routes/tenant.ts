@@ -6,6 +6,8 @@ import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import { generateBarcode } from "../utils/barcode";
 import { stockUpdateService } from "../services/stockUpdateService";
+import { emailService } from "../services/emailService";
+import { EmailTemplates } from "../templates/emailTemplates";
 
 const router = Router();
 
@@ -124,8 +126,47 @@ router.post("/products", async (req, res) => {
           ],
         },
       },
-      include: { variants: true },
+      include: { 
+        variants: true,
+        tenant: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        }
+      },
     });
+
+    // Send email notification to tenant
+    try {
+      const emailTemplate = EmailTemplates.productSubmissionAlert({
+        productName: product.name,
+        submittedBy: product.tenant.user.name || 'Unknown',
+        tenantName: product.tenant.user.name || 'Unknown Tenant',
+        variantCount: product.variants.length,
+        submissionDate: new Date().toLocaleDateString(),
+        status: 'pending',
+        variants: product.variants.map(variant => ({
+          color: variant.color,
+          size: variant.size,
+          price: variant.price,
+          stock: variant.stock
+        }))
+      });
+
+      await emailService.sendEmail({
+        to: product.tenant.user.email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+        text: emailTemplate.text
+      });
+
+      console.log(`📧 Product submission confirmation email sent to ${product.tenant.user.email}`);
+    } catch (emailError) {
+      console.error('Failed to send product submission email:', emailError);
+      // Don't fail the request if email fails
+    }
 
     res.status(201).json(product);
   } catch (err: any) {
