@@ -27,9 +27,13 @@ export class StockMonitorService {
   private isRunning: boolean = false;
   private intervalId: NodeJS.Timeout | null = null;
   private lastRunTime: Date | null = null;
+  private monitoringIntervalHours: number;
 
   constructor() {
     this.prisma = new PrismaClient();
+    // Get monitoring interval from environment variable, default to 24 hours
+    const envInterval = parseInt(process.env.STOCK_MONITOR_INTERVAL_HOURS || '24', 10);
+    this.monitoringIntervalHours = isNaN(envInterval) || envInterval <= 0 ? 24 : envInterval;
   }
 
   /**
@@ -46,10 +50,10 @@ export class StockMonitorService {
     // Run initial check
     await this.performStockCheck();
     
-    // Schedule checks every 24 hours (86400000 ms)
+    // Schedule checks based on environment variable (default 24 hours)
     this.intervalId = setInterval(async () => {
       await this.performStockCheck();
-    }, 24 * 60 * 60 * 1000);
+    }, this.monitoringIntervalHours * 60 * 60 * 1000);
     
     this.isRunning = true;
   }
@@ -239,15 +243,17 @@ export class StockMonitorService {
     isRunning: boolean;
     lastRunTime: Date | null;
     nextRunTime: Date | null;
+    monitoringIntervalHours: number;
   } {
     const nextRunTime = this.lastRunTime 
-      ? new Date(this.lastRunTime.getTime() + 24 * 60 * 60 * 1000)
+      ? new Date(this.lastRunTime.getTime() + this.monitoringIntervalHours * 60 * 60 * 1000)
       : null;
 
     return {
       isRunning: this.isRunning,
       lastRunTime: this.lastRunTime,
-      nextRunTime
+      nextRunTime,
+      monitoringIntervalHours: this.monitoringIntervalHours
     };
   }
 
@@ -262,20 +268,13 @@ export class StockMonitorService {
    * Update the check interval (in hours)
    */
   updateInterval(hours: number): void {
+    this.monitoringIntervalHours = hours;
+    
     if (this.isRunning) {
       this.stop();
+      // Restart with new interval
+      this.start();
     }
-
-    // Restart with new interval
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-
-    this.intervalId = setInterval(async () => {
-      await this.performStockCheck();
-    }, hours * 60 * 60 * 1000);
-
-    // Interval updated
   }
 
   /**
