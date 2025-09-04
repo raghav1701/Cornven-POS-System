@@ -3,9 +3,10 @@
 import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { tenantPortalService, AddProductRequest, ProductVariantRequest } from '@/services/tenantPortalService';
+import { tenantPortalService, AddProductRequest, ProductVariantRequest, TenantProduct } from '@/services/tenantPortalService';
 import { ArrowLeft, Plus, Trash2, Upload, X, Image as ImageIcon } from 'lucide-react';
 import Navigation from '@/components/Navigation';
+import ImageUploadPopup from '@/components/ImageUploadPopup';
 
 export default function AddProductPage() {
   const { user } = useAuth();
@@ -29,6 +30,8 @@ export default function AddProductPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  const [createdProduct, setCreatedProduct] = useState<TenantProduct | null>(null);
+  const [showImageUploadPopup, setShowImageUploadPopup] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -146,11 +149,10 @@ export default function AddProductPage() {
       
       const result = await tenantPortalService.addProduct(submitData);
       
-      if (result.success) {
+      if (result.success && result.data) {
         setSuccess('Product submitted for approval successfully!');
-        setTimeout(() => {
-          router.push('/tenant/products');
-        }, 2000);
+        setCreatedProduct(result.data);
+        setShowImageUploadPopup(true);
       } else {
         throw new Error(result.message || 'Failed to submit product');
       }
@@ -438,6 +440,26 @@ export default function AddProductPage() {
           </div>
         </form>
       </div>
+
+      {/* Image Upload Popup */}
+      {createdProduct && (
+        <ImageUploadPopup
+          isOpen={showImageUploadPopup}
+          onClose={() => {
+            setShowImageUploadPopup(false);
+            router.push('/tenant/products');
+          }}
+          variants={createdProduct.variants}
+          onSuccess={(message) => {
+            setSuccess(message);
+            setError('');
+          }}
+          onError={(message) => {
+            setError(message);
+            setSuccess('');
+          }}
+        />
+      )}
     </div>
   );
 }

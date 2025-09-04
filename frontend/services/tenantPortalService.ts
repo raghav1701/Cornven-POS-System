@@ -207,6 +207,85 @@ class TenantPortalService {
   }>> {
     return await this.makeRequest(`/tenant/products/${productId}/logs`);
   }
+
+  // S3 Image Upload Methods
+  async generateImageUploadUrl(variantId: string, contentType: string, ext: string): Promise<{
+    uploadUrl: string;
+    key: string;
+    expiresIn: number;
+  }> {
+    return await this.makeRequest(`/variants/${variantId}/image/upload-url`, {
+      method: 'POST',
+      body: JSON.stringify({ contentType, ext }),
+    });
+  }
+
+  async uploadImageToS3(uploadUrl: string, imageFile: File): Promise<Response> {
+    console.log('Uploading to S3 URL:', uploadUrl);
+    console.log('File type:', imageFile.type, 'File size:', imageFile.size);
+    
+    try {
+      console.log('Making fetch request to S3...');
+      
+      // Create AbortController for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+          const response = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: imageFile,
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          console.log('S3 upload response:', response.status, response.statusText);
+          
+          if (!response.ok) {
+            console.error('S3 upload failed with status:', response.status);
+            const responseText = await response.text().catch(() => 'Unable to read response');
+            console.error('S3 error response:', responseText);
+          }
+          
+          return response;
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            console.error('S3 upload timed out after 30 seconds');
+            throw new Error('Upload timed out');
+          }
+          
+          // Log additional details for network errors
+           if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
+             console.error('Network fetch failed. This could be due to:');
+             console.error('1. CORS policy restrictions on the S3 bucket');
+             console.error('2. Network connectivity issues');
+             console.error('3. Invalid or expired presigned URL');
+             console.error('4. Placeholder checksum causing signature mismatch');
+             console.error('Upload URL:', cleanUrl);
+           }
+          
+          throw fetchError;
+        }
+    } catch (error) {
+      console.error('S3 upload error:', error);
+      console.error('Error type:', error instanceof TypeError ? 'TypeError' : typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  }
+
+  async commitImageKey(variantId: string, key: string): Promise<ProductVariant> {
+    console.log('=== COMMITTING IMAGE KEY ===');
+    console.log('Variant ID:', variantId);
+    console.log('Image Key:', key);
+    return await this.makeRequest(`/variants/${variantId}/image/commit`, {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    });
+  }
 }
 
 export const tenantPortalService = new TenantPortalService();
