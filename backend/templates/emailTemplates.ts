@@ -304,6 +304,93 @@ Generated at: ${new Date().toLocaleString()}
   }
 
   /**
+   * Product approval/rejection notification template
+   */
+  static productApprovalAlert(data: {
+    tenantName: string;
+    productName: string;
+    variantDetails: string;
+    status: 'APPROVED' | 'REJECTED';
+    approvalDate: string;
+  }): { subject: string; html: string; text: string } {
+    const statusEmoji = '';
+    const statusText = data.status === 'APPROVED' ? 'Approved' : 'Rejected';
+    const statusColor = data.status === 'APPROVED' ? '#28a745' : '#dc3545';
+    
+    const subject = `Product ${statusText}: ${data.productName}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+          .status-approved { background: #d4edda; border: 1px solid #c3e6cb; }
+          .status-rejected { background: #f8d7da; border: 1px solid #f5c6cb; }
+          .details { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header status-${data.status.toLowerCase()}">
+            <h2 style="margin: 0; color: ${statusColor};">Product ${statusText}</h2>
+            <p style="margin: 5px 0 0 0; color: #666;">Your product submission has been reviewed.</p>
+          </div>
+          
+          <div class="details">
+            <h4>Product Details:</h4>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              <li><strong>Product Name:</strong> ${data.productName}</li>
+              <li><strong>Variant:</strong> ${data.variantDetails}</li>
+              <li><strong>Tenant:</strong> ${data.tenantName}</li>
+              <li><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText.toUpperCase()}</span></li>
+              <li><strong>Decision Date:</strong> ${data.approvalDate}</li>
+            </ul>
+          </div>
+          
+          ${data.status === 'APPROVED' ? 
+            '<div style="background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;"><strong>🎉 Congratulations!</strong><br>Your product variant has been approved and is now available in the system.</div>' :
+            '<div style="background: #f8d7da; padding: 15px; border-radius: 5px; border-left: 4px solid #dc3545;"><strong>📝 Action Required</strong><br>Your product variant was not approved. Please review the submission and make necessary corrections before resubmitting.</div>'
+          }
+          
+          <div class="footer">
+            <p>This is an automated notification from your Cornven POS System.</p>
+            <p>Generated at: ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const text = `
+PRODUCT ${statusText.toUpperCase()}
+
+Hello ${data.tenantName},
+
+Your product submission has been reviewed.
+
+PRODUCT DETAILS:
+- Product Name: ${data.productName}
+- Variant: ${data.variantDetails}
+- Status: ${statusText.toUpperCase()}
+- Decision Date: ${data.approvalDate}
+
+${data.status === 'APPROVED' ? 
+  'CONGRATULATIONS! Your product variant has been approved and is now available in the system.' :
+  'ACTION REQUIRED: Your product variant was not approved. Please review the submission and make necessary corrections before resubmitting.'
+}
+
+Generated at: ${new Date().toLocaleString()}
+    `.trim();
+    
+    return { subject, html, text };
+  }
+
+  /**
    * Generic notification template for custom alerts
    */
   static genericAlert(data: {
