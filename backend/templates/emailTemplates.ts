@@ -173,6 +173,12 @@ Generated at: ${new Date().toLocaleString()}
     variantCount: number;
     submissionDate: string;
     status: 'pending' | 'approved' | 'rejected';
+    variants?: Array<{
+      color: string;
+      size: string;
+      price: number;
+      stock: number;
+    }>;
   }): { subject: string; html: string; text: string } {
     const statusEmoji = {
       pending: '⏳',
@@ -223,6 +229,32 @@ Generated at: ${new Date().toLocaleString()}
             </ul>
           </div>
           
+          ${data.variants && data.variants.length > 0 ? `
+          <div class="details">
+            <h4>Variant Details:</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <thead>
+                <tr style="background-color: #e9ecef;">
+                  <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 14px;">Color</th>
+                  <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 14px;">Size</th>
+                  <th style="border: 1px solid #dee2e6; padding: 8px; text-align: right; font-size: 14px;">Price</th>
+                  <th style="border: 1px solid #dee2e6; padding: 8px; text-align: right; font-size: 14px;">Stock</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.variants.map(variant => `
+                <tr>
+                  <td style="border: 1px solid #dee2e6; padding: 8px; font-size: 14px;">${variant.color}</td>
+                  <td style="border: 1px solid #dee2e6; padding: 8px; font-size: 14px;">${variant.size}</td>
+                  <td style="border: 1px solid #dee2e6; padding: 8px; text-align: right; font-size: 14px;">$${variant.price.toFixed(2)}</td>
+                  <td style="border: 1px solid #dee2e6; padding: 8px; text-align: right; font-size: 14px;">${variant.stock}</td>
+                </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          ` : ''}
+          
           ${data.status === 'pending' ? 
             '<p><strong>Next Steps:</strong> This submission is awaiting review and approval.</p>' :
             data.status === 'approved' ? 
@@ -249,6 +281,15 @@ Variant Count: ${data.variantCount}
 Submission Date: ${data.submissionDate}
 Status: ${data.status.toUpperCase()}
 
+${data.variants && data.variants.length > 0 ? `
+VARIANT DETAILS:
+${data.variants.map((variant, index) => `
+Variant ${index + 1}:
+  Color: ${variant.color}
+  Size: ${variant.size}
+  Price: $${variant.price.toFixed(2)}
+  Stock: ${variant.stock}`).join('')}
+` : ''}
 ${data.status === 'pending' ? 
   'Next Steps: This submission is awaiting review and approval.' :
   data.status === 'approved' ? 
