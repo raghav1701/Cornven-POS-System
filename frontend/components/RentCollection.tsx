@@ -13,8 +13,9 @@ const RentCollection = ({ tenants, onAddPayment }: RentCollectionProps) => {
   const [amount, setAmount] = useState<string>('');
   const [method, setMethod] = useState<'Bank Transfer' | 'Card'>('Bank Transfer');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedTenant || !amount || !date) {
@@ -28,16 +29,21 @@ const RentCollection = ({ tenants, onAddPayment }: RentCollectionProps) => {
       return;
     }
 
-    onAddPayment(selectedTenant, {
-      amount: paymentAmount,
-      method,
-      date,
-    });
+    setIsSubmitting(true);
+    try {
+      onAddPayment(selectedTenant, {
+        amount: paymentAmount,
+        method,
+        date,
+      });
 
-    // Reset form
-    setAmount('');
-    setDate(new Date().toISOString().split('T')[0]);
-    alert('Payment recorded successfully!');
+      // Reset form
+      setAmount('');
+      setDate(new Date().toISOString().split('T')[0]);
+      alert('Payment recorded successfully!');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedTenantData = tenants.find(t => t.id === selectedTenant);
@@ -130,10 +136,17 @@ const RentCollection = ({ tenants, onAddPayment }: RentCollectionProps) => {
 
             <button
               type="submit"
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed active:bg-blue-800 text-sm sm:text-base"
-              disabled={!selectedTenant}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed active:bg-blue-800 text-sm sm:text-base flex items-center justify-center"
+              disabled={!selectedTenant || isSubmitting}
             >
-              Record Payment
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Recording...
+                </>
+              ) : (
+                'Record Payment'
+              )}
             </button>
           </form>
         </div>
