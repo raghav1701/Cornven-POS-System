@@ -8,6 +8,7 @@ import { getRolePermissions } from '@/data/mockAuth';
 import { mockProducts, mockCategories, getProductsByCategory, searchProducts } from '@/data/mockProducts';
 import { Product, Category } from '@/types/product';
 import { adminProductService, AdminProduct } from '@/services/adminProductService';
+import { authService } from '@/services/authService';
 import { Search, Filter, Upload, Download, Edit, Trash2, Eye, Package, AlertTriangle, TrendingUp, DollarSign, Users, RefreshCw, Check, X } from 'lucide-react';
 
 type AdminProductTabType = 'products' | 'approvals' | 'logs';
@@ -28,6 +29,91 @@ const AdminProducts = () => {
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState<string | null>(null);
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [selectedProductForModal, setSelectedProductForModal] = useState<AdminProduct | null>(null);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [selectedVariantForBarcode, setSelectedVariantForBarcode] = useState<any>(null);
+  const [barcodeImageUrl, setBarcodeImageUrl] = useState<string>('');
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [barcodeSearchTerm, setBarcodeSearchTerm] = useState('');
+  const [barcodeSearchResult, setBarcodeSearchResult] = useState<any>(null);
+  const [barcodeSearchLoading, setBarcodeSearchLoading] = useState(false);
+  const [variantSearchTerm, setVariantSearchTerm] = useState('');
+
+  // Barcode API functions
+  const fetchBarcodeImage = async (variantId: string) => {
+    setBarcodeLoading(true);
+    try {
+      const token = authService.getAuthToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`https://cornven-pos-system.vercel.app/variants/${variantId}/barcode.png`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch barcode image');
+      }
+
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      setBarcodeImageUrl(imageUrl);
+    } catch (error) {
+      console.error('Error fetching barcode:', error);
+      alert('Failed to load barcode image');
+    } finally {
+      setBarcodeLoading(false);
+    }
+  };
+
+  const searchBarcode = async (barcode: string) => {
+    if (!barcode.trim()) return;
+    
+    setBarcodeSearchLoading(true);
+    try {
+      const token = authService.getAuthToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`https://cornven-pos-system.vercel.app/variants/lookup?barcode=${encodeURIComponent(barcode)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Barcode not found');
+      }
+
+      const result = await response.json();
+      setBarcodeSearchResult(result);
+    } catch (error) {
+      console.error('Error searching barcode:', error);
+      setBarcodeSearchResult(null);
+      alert('Barcode not found or error occurred');
+    } finally {
+      setBarcodeSearchLoading(false);
+    }
+  };
+
+  const handleViewBarcode = (variant: any) => {
+    setSelectedVariantForBarcode(variant);
+    setShowBarcodeModal(true);
+    fetchBarcodeImage(variant.id);
+  };
+
+  const closeBarcodeModal = () => {
+    setShowBarcodeModal(false);
+    setSelectedVariantForBarcode(null);
+    setBarcodeImageUrl('');
+    setBarcodeSearchTerm('');
+    setBarcodeSearchResult(null);
+  };
 
   useEffect(() => {
     if (!isLoading) {
@@ -631,22 +717,56 @@ const AdminProducts = () => {
                             <div className="text-sm text-gray-900">
                               {product.variants && product.variants.length > 0 ? (
                                 <div>
-                                  <div className="font-medium">{product.variants.length} variant(s)</div>
-                                  <div className="text-xs text-gray-500 mt-1">
+                                  <div className="font-medium mb-2">{product.variants.length} variant(s)</div>
+                                  <div className="space-y-1">
                                     {product.variants.slice(0, 2).map((variant, idx) => (
-                                      <div key={idx}>
-                                        {variant.color} {variant.size} - ${variant.price}
+                                      <div key={idx} className="flex items-center space-x-2">
+                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                          {variant.color}
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                                          {variant.size}
+                                        </span>
+                                        <span className="text-xs font-semibold text-green-600">
+                                          ${(variant.price || 0).toFixed(2)}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          ({variant.stock || 0} units)
+                                        </span>
                                       </div>
                                     ))}
                                     {product.variants.length > 2 && (
-                                      <div className="text-blue-600">+{product.variants.length - 2} more</div>
+                                      <div className="text-blue-600 text-xs font-medium">+{product.variants.length - 2} more variants</div>
                                     )}
+                                  </div>
+                                  <div className="mt-2 pt-2 border-t border-gray-100">
+                                    <div className="text-xs text-gray-600">
+                                      <span className="font-medium">Total Stock: </span>
+                                      <span className="font-semibold text-gray-900">
+                                        {product.variants.reduce((sum, v) => sum + (v.stock || 0), 0)} units
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-600">
+                                      <span className="font-medium">Total Value: </span>
+                                      <span className="font-semibold text-green-600">
+                                        ${product.variants.reduce((sum, v) => sum + ((v.price || 0) * (v.stock || 0)), 0).toFixed(2)}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               ) : (
                                 <div>
-                                  <div className="font-medium">Base Product</div>
-                                  <div className="text-xs text-gray-500">${(product.price || 0).toFixed(2)}</div>
+                                  <div className="font-medium mb-1">Base Product</div>
+                                  <div className="text-xs text-gray-600">
+                                    <span className="font-semibold text-green-600">${(product.price || 0).toFixed(2)}</span>
+                                    <span className="text-gray-500 ml-2">({product.stock || 0} units)</span>
+                                  </div>
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    <span className="font-medium">Total Value: </span>
+                                    <span className="font-semibold text-green-600">
+                                      ${((product.price || 0) * (product.stock || 0)).toFixed(2)}
+                                    </span>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -692,7 +812,10 @@ const AdminProducts = () => {
                     <div 
                       key={product.id} 
                       className="border-b border-gray-200 p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => router.push(`/admin/products/${product.id}`)}
+                      onClick={() => {
+                        setSelectedProductForModal(product);
+                        setShowVariantModal(true);
+                      }}
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-start space-x-3 flex-1 min-w-0">
@@ -716,9 +839,6 @@ const AdminProducts = () => {
                             <p className="text-xs text-gray-500 mt-1 truncate">{product.description}</p>
                           </div>
                         </div>
-                        <div className="ml-2 flex-shrink-0">
-                          {renderVariantStatusBadges(product)}
-                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 mb-3">
@@ -729,21 +849,61 @@ const AdminProducts = () => {
                           </span>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500">Variants</p>
-                          <div className="text-xs text-gray-900">
+                          <p className="text-xs text-gray-500 mb-2">Variants & Stock</p>
+                          <div className="text-xs">
                             {product.variants && product.variants.length > 0 ? (
-                              <div>
+                              <div className="space-y-2">
+                                <div className="font-medium text-gray-900 mb-1">
+                                  {product.variants.length} variant(s)
+                                </div>
                                 {product.variants.slice(0, 2).map((variant, index) => (
-                                  <div key={index} className="mb-1">
-                                    {variant.color} {variant.size} - ${variant.price}
+                                  <div key={index} className="flex flex-wrap items-center gap-1 mb-1">
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                      {variant.color}
+                                    </span>
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                                      {variant.size}
+                                    </span>
+                                    <span className="text-xs font-semibold text-green-600">
+                                      ${(variant.price || 0).toFixed(2)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      ({variant.stock || 0})
+                                    </span>
                                   </div>
                                 ))}
                                 {product.variants.length > 2 && (
-                                  <div className="text-gray-500">+{product.variants.length - 2} more</div>
+                                  <div className="text-blue-600 font-medium">+{product.variants.length - 2} more</div>
                                 )}
+                                <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                                  <div className="text-gray-600">
+                                    <span className="font-medium">Total Stock: </span>
+                                    <span className="font-semibold text-gray-900">
+                                      {product.variants.reduce((sum, v) => sum + (v.stock || 0), 0)}
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-600">
+                                    <span className="font-medium">Total Value: </span>
+                                    <span className="font-semibold text-green-600">
+                                      ${product.variants.reduce((sum, v) => sum + ((v.price || 0) * (v.stock || 0)), 0).toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
                             ) : (
-                              <span className="text-gray-500">No variants</span>
+                              <div>
+                                <div className="font-medium text-gray-900 mb-1">Base Product</div>
+                                <div className="text-gray-600">
+                                  <span className="font-semibold text-green-600">${(product.price || 0).toFixed(2)}</span>
+                                  <span className="text-gray-500 ml-2">({product.stock || 0} units)</span>
+                                </div>
+                                <div className="text-gray-600 mt-1">
+                                  <span className="font-medium">Total Value: </span>
+                                  <span className="font-semibold text-green-600">
+                                    ${((product.price || 0) * (product.stock || 0)).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1094,6 +1254,446 @@ const AdminProducts = () => {
                   Upload
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Variant Details Modal */}
+      {showVariantModal && selectedProductForModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Modal Header */}
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{selectedProductForModal.name}</h2>
+                  <p className="text-gray-600 mt-1">{selectedProductForModal.description}</p>
+                  <div className="flex items-center gap-4 mt-2">
+                    <span className="text-sm text-gray-500">SKU: {selectedProductForModal.sku}</span>
+                    <span className="text-sm text-gray-500">Category: {selectedProductForModal.category}</span>
+                    <span className="text-sm text-gray-500">Tenant: {selectedProductForModal.tenant?.businessName}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVariantModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              
+              {/* Product Status */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Product Status</h3>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    selectedProductForModal.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                    selectedProductForModal.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {selectedProductForModal.status}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    Created: {new Date(selectedProductForModal.createdAt).toLocaleDateString()}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    Updated: {new Date(selectedProductForModal.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Variants */}
+              {selectedProductForModal.variants && selectedProductForModal.variants.length > 0 ? (
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Product Variants ({selectedProductForModal.variants.length})</h3>
+                  </div>
+                  
+                  {/* Variant Search Bar */}
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      value={variantSearchTerm}
+                      onChange={(e) => setVariantSearchTerm(e.target.value)}
+                      placeholder="Search variants by color, size, SKU, or barcode..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedProductForModal.variants
+                      .filter((variant) => {
+                        if (!variantSearchTerm) return true;
+                        const searchLower = variantSearchTerm.toLowerCase();
+                        return (
+                          variant.color?.toLowerCase().includes(searchLower) ||
+                          variant.size?.toLowerCase().includes(searchLower) ||
+                          variant.sku?.toLowerCase().includes(searchLower) ||
+                          variant.barcode?.toLowerCase().includes(searchLower)
+                        );
+                      })
+                      .map((variant) => (
+                      <div key={variant.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex flex-wrap gap-2">
+                            {variant.color && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                {variant.color}
+                              </span>
+                            )}
+                            {variant.size && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                {variant.size}
+                              </span>
+                            )}
+                          </div>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            variant.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                            variant.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {variant.status}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Price:</span>
+                            <span className="text-sm font-medium text-green-600">${variant.price?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Stock:</span>
+                            <span className={`text-sm font-medium ${
+                              (variant.stock || 0) <= 5 ? 'text-red-600' : 'text-gray-900'
+                            }`}>
+                              {variant.stock || 0}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">SKU:</span>
+                            <span className="text-sm text-gray-900">{variant.sku}</span>
+                          </div>
+                          {variant.barcode && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Barcode:</span>
+                              <span className="text-sm text-gray-900">{variant.barcode}</span>
+                            </div>
+                          )}
+                          <div className="border-t pt-2 mt-2">
+                            <div className="flex justify-between mb-2">
+                              <span className="text-sm text-gray-600">Total Value:</span>
+                              <span className="text-sm font-medium text-green-600">
+                                ${((variant.price || 0) * (variant.stock || 0)).toFixed(2)}
+                              </span>
+                            </div>
+                            {variant.barcode && (
+                              <button
+                                onClick={() => handleViewBarcode(variant)}
+                                className="w-full mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                              >
+                                View Barcode
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Summary */}
+                  <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-md font-semibold text-gray-900 mb-3">Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <span className="text-sm text-gray-600">Total Variants:</span>
+                        <div className="text-lg font-semibold text-gray-900">{selectedProductForModal.variants.length}</div>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Total Stock:</span>
+                        <div className="text-lg font-semibold text-gray-900">
+                          {selectedProductForModal.variants.reduce((sum, v) => sum + (v.stock || 0), 0)}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Total Value:</span>
+                        <div className="text-lg font-semibold text-green-600">
+                          ${selectedProductForModal.variants.reduce((sum, v) => sum + ((v.price || 0) * (v.stock || 0)), 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Avg. Price:</span>
+                        <div className="text-lg font-semibold text-gray-900">
+                          ${(selectedProductForModal.variants.reduce((sum, v) => sum + (v.price || 0), 0) / selectedProductForModal.variants.length).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Base Product Details */
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Product Details</h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <span className="text-sm text-gray-600">Price:</span>
+                        <div className="text-lg font-semibold text-green-600">${selectedProductForModal.price?.toFixed(2) || '0.00'}</div>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Stock:</span>
+                        <div className={`text-lg font-semibold ${
+                          (selectedProductForModal.stock || 0) <= 5 ? 'text-red-600' : 'text-gray-900'
+                        }`}>
+                          {selectedProductForModal.stock || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Total Value:</span>
+                        <div className="text-lg font-semibold text-green-600">
+                          ${((selectedProductForModal.price || 0) * (selectedProductForModal.stock || 0)).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Close Button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowVariantModal(false)}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Modal */}
+      {showBarcodeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Barcode Details</h2>
+              <button
+                onClick={closeBarcodeModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Barcode Lookup Section */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Barcode Lookup</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={barcodeSearchTerm}
+                  onChange={(e) => setBarcodeSearchTerm(e.target.value)}
+                  placeholder="Enter barcode to search"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={() => searchBarcode(barcodeSearchTerm)}
+                  disabled={barcodeSearchLoading || !barcodeSearchTerm.trim()}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {barcodeSearchLoading ? 'Searching...' : 'Search'}
+                </button>
+              </div>
+              
+              {/* Search Results */}
+              {barcodeSearchResult && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-2">Search Result:</h4>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="font-medium">Product:</span> {barcodeSearchResult.productName}</p>
+                    <p><span className="font-medium">Category:</span> {barcodeSearchResult.category}</p>
+                    <p><span className="font-medium">Color:</span> {barcodeSearchResult.color}</p>
+                    <p><span className="font-medium">Size:</span> {barcodeSearchResult.size}</p>
+                    <p><span className="font-medium">Price:</span> ${barcodeSearchResult.price}</p>
+                    <p><span className="font-medium">Stock:</span> {barcodeSearchResult.stock}</p>
+                    <p><span className="font-medium">Tenant:</span> {barcodeSearchResult.tenant?.businessName}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Current Variant Details */}
+            {selectedVariantForBarcode && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Current Variant</h3>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex gap-2 mb-2">
+                      {selectedVariantForBarcode.color && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {selectedVariantForBarcode.color}
+                        </span>
+                      )}
+                      {selectedVariantForBarcode.size && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                          {selectedVariantForBarcode.size}
+                        </span>
+                      )}
+                    </div>
+                    <p><span className="font-medium">Price:</span> ${selectedVariantForBarcode.price?.toFixed(2) || '0.00'}</p>
+                    <p><span className="font-medium">Stock:</span> {selectedVariantForBarcode.stock || 0}</p>
+                    <p><span className="font-medium">SKU:</span> {selectedVariantForBarcode.sku}</p>
+                    <p><span className="font-medium">Barcode:</span> {selectedVariantForBarcode.barcode}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Barcode Image */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Barcode Image</h3>
+              <div className="border border-gray-200 rounded-lg p-4 text-center">
+                {barcodeLoading ? (
+                  <div className="py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="text-gray-600 mt-2">Loading barcode...</p>
+                  </div>
+                ) : barcodeImageUrl ? (
+                  <img
+                    src={barcodeImageUrl}
+                    alt="Barcode"
+                    className="max-w-full h-auto mx-auto"
+                  />
+                ) : (
+                  <p className="text-gray-600 py-8">No barcode image available</p>
+                )}
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={closeBarcodeModal}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Modal */}
+      {showBarcodeModal && selectedVariantForBarcode && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Barcode Details</h2>
+              <button
+                onClick={closeBarcodeModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Barcode Lookup Section */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Barcode Lookup</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={barcodeSearchTerm}
+                  onChange={(e) => setBarcodeSearchTerm(e.target.value)}
+                  placeholder="Enter barcode to search"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={() => searchBarcode(barcodeSearchTerm)}
+                  disabled={barcodeSearchLoading || !barcodeSearchTerm.trim()}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {barcodeSearchLoading ? 'Searching...' : 'Search'}
+                </button>
+              </div>
+              
+              {/* Search Results */}
+              {barcodeSearchResult && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-2">Search Result:</h4>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="font-medium">Product:</span> {barcodeSearchResult.productName}</p>
+                    <p><span className="font-medium">Category:</span> {barcodeSearchResult.category}</p>
+                    <p><span className="font-medium">Color:</span> {barcodeSearchResult.color}</p>
+                    <p><span className="font-medium">Size:</span> {barcodeSearchResult.size}</p>
+                    <p><span className="font-medium">Price:</span> ${barcodeSearchResult.price}</p>
+                    <p><span className="font-medium">Stock:</span> {barcodeSearchResult.stock}</p>
+                    <p><span className="font-medium">Tenant:</span> {barcodeSearchResult.tenant?.businessName}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Current Variant Details */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Current Variant</h3>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="space-y-2 text-sm">
+                  <div className="flex gap-2 mb-2">
+                    {selectedVariantForBarcode.color && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        {selectedVariantForBarcode.color}
+                      </span>
+                    )}
+                    {selectedVariantForBarcode.size && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        {selectedVariantForBarcode.size}
+                      </span>
+                    )}
+                  </div>
+                  <p><span className="font-medium">Price:</span> ${selectedVariantForBarcode.price?.toFixed(2) || '0.00'}</p>
+                  <p><span className="font-medium">Stock:</span> {selectedVariantForBarcode.stock || 0}</p>
+                  <p><span className="font-medium">SKU:</span> {selectedVariantForBarcode.sku}</p>
+                  <p><span className="font-medium">Barcode:</span> {selectedVariantForBarcode.barcode}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Barcode Image */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Barcode Image</h3>
+              <div className="border border-gray-200 rounded-lg p-4 text-center">
+                {barcodeLoading ? (
+                  <div className="py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="text-gray-600 mt-2">Loading barcode...</p>
+                  </div>
+                ) : barcodeImageUrl ? (
+                  <img
+                    src={barcodeImageUrl}
+                    alt="Barcode"
+                    className="max-w-full h-auto mx-auto"
+                  />
+                ) : (
+                  <p className="text-gray-500 py-8">Failed to load barcode image</p>
+                )}
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={closeBarcodeModal}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
