@@ -190,6 +190,12 @@ class TenantPortalService {
     });
   }
 
+  async deleteVariant(productId: string, variantId: string): Promise<void> {
+    return await this.makeRequest(`/tenant/products/${productId}/variants/${variantId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getProductLogs(productId: string): Promise<Array<{
     id: string;
     productId: string;
