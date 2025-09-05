@@ -264,7 +264,7 @@ class TenantPortalService {
              console.error('2. Network connectivity issues');
              console.error('3. Invalid or expired presigned URL');
              console.error('4. Placeholder checksum causing signature mismatch');
-             console.error('Upload URL:', cleanUrl);
+             console.error('Upload URL:', uploadUrl);
            }
           
           throw fetchError;
@@ -285,6 +285,53 @@ class TenantPortalService {
       method: 'POST',
       body: JSON.stringify({ key }),
     });
+  }
+
+  async getVariantImageUrl(variantId: string): Promise<{ url: string }> {
+    return this.makeRequest(`/variants/${variantId}/image-url`, {
+      method: 'GET',
+    });
+  }
+
+  // Non-redirecting version for admin/inventory use - uses Next.js API route as proxy
+  async getVariantImageUrlSafe(variantId: string): Promise<{ url: string } | null> {
+    try {
+      const token = authService.getAuthToken();
+      console.log('Retrieved token from authService:', token ? `Token: ${token.substring(0, 20)}...` : 'No token found');
+      
+      if (!token) {
+        console.warn('No authentication token found for image URL request');
+        console.log('Checking localStorage directly:', typeof window !== 'undefined' ? localStorage.getItem('cornven_token') : 'Not in browser');
+        return null;
+      }
+
+      // Use Next.js API route as proxy to deployed backend
+      const imageUrl = `/api/variants/${variantId}/image-url`;
+      console.log('Fetching image URL via Next.js API proxy:', imageUrl);
+      console.log('Using Authorization header with Bearer token');
+
+      const response = await fetch(imageUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('Image URL response status:', response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`Failed to fetch image URL for variant ${variantId}:`, response.status, errorText);
+        return null;
+      }
+
+      const result = await response.json();
+      console.log('Image URL result:', result);
+      return result;
+    } catch (error) {
+      console.warn('Error fetching variant image URL:', error);
+      return null;
+    }
   }
 }
 

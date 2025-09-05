@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
   Package, 
   Search, 
@@ -42,6 +43,7 @@ import { Product, InventoryChange, DeliveryLog, InventoryFilter } from '@/types/
 import { adminProductService, AdminProduct } from '@/services/adminProductService';
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import { authService } from '@/services/authService';
+import { tenantPortalService } from '@/services/tenantPortalService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
@@ -123,6 +125,32 @@ export default function InventoryPage() {
     setBarcodeSearchTerm('');
     setBarcodeSearchResult(null);
   };
+
+  // Variant Image API functions
+  const fetchVariantImage = async (variantId: string) => {
+    if (variantImages[variantId] || variantImageLoading[variantId]) {
+      return; // Already loaded or loading
+    }
+
+    console.log('Fetching image for variant:', variantId);
+    setVariantImageLoading(prev => ({ ...prev, [variantId]: true }));
+    try {
+      const response = await tenantPortalService.getVariantImageUrlSafe(variantId);
+        console.log('Variant image response:', response);
+        if (response && response.url) {
+          setVariantImages(prev => ({ ...prev, [variantId]: response.url }));
+        } else {
+          console.warn(`No image URL available for variant ${variantId}`);
+          setVariantImages(prev => ({ ...prev, [variantId]: 'No image' }));
+        }
+    } catch (error) {
+      console.error('Error fetching variant image:', error);
+      // Set a placeholder or error state
+      setVariantImages(prev => ({ ...prev, [variantId]: '' }));
+    } finally {
+      setVariantImageLoading(prev => ({ ...prev, [variantId]: false }));
+    }
+  };
   const router = useRouter();
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('products');
@@ -133,6 +161,15 @@ export default function InventoryPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedProductForModal, setSelectedProductForModal] = useState<AdminProduct | null>(null);
+
+  // Fetch variant images when modal opens
+  useEffect(() => {
+    if (showVariantModal && selectedProductForModal && selectedProductForModal.variants) {
+      selectedProductForModal.variants.forEach(variant => {
+        fetchVariantImage(variant.id);
+      });
+    }
+  }, [showVariantModal, selectedProductForModal]);
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [selectedVariantForBarcode, setSelectedVariantForBarcode] = useState<any>(null);
   const [barcodeImageUrl, setBarcodeImageUrl] = useState<string>('');
@@ -141,6 +178,8 @@ export default function InventoryPage() {
   const [barcodeSearchResult, setBarcodeSearchResult] = useState<any>(null);
   const [barcodeSearchLoading, setBarcodeSearchLoading] = useState(false);
   const [variantSearchTerm, setVariantSearchTerm] = useState('');
+  const [variantImages, setVariantImages] = useState<{[key: string]: string}>({});
+  const [variantImageLoading, setVariantImageLoading] = useState<{[key: string]: boolean}>({});
   const [apiProducts, setApiProducts] = useState<AdminProduct[]>([]);
   const [apiTenants, setApiTenants] = useState<AdminTenant[]>([]);
   const [loading, setLoading] = useState(false);
@@ -926,28 +965,55 @@ export default function InventoryPage() {
                         );
                       })
                       .map((variant) => (
-                      <div key={variant.id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex flex-wrap gap-2">
-                            {variant.color && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                {variant.color}
-                              </span>
-                            )}
-                            {variant.size && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                {variant.size}
-                              </span>
+                        <div key={variant.id} className="border border-gray-200 rounded-lg p-4">
+                          {/* Variant Image */}
+                          <div className="mb-3">
+                            {variantImageLoading[variant.id] ? (
+                              <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                              </div>
+                            ) : variantImages[variant.id] ? (
+                              <div className="relative w-full bg-gray-100 rounded-lg overflow-hidden">
+                                <Image
+                                  src={variantImages[variant.id]}
+                                  alt={`${variant.color || ''} ${variant.size || ''} variant`}
+                                  width={400}
+                                  height={400}
+                                  className="object-contain w-full h-auto max-h-96"
+                                  onError={() => {
+                                    setVariantImages(prev => ({ ...prev, [variant.id]: '' }));
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <Package className="h-8 w-8 text-gray-400" />
+                                <span className="ml-2 text-sm text-gray-500">No image</span>
+                              </div>
                             )}
                           </div>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            variant.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                            variant.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {variant.status}
-                          </span>
-                        </div>
+
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {variant.color && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {variant.color}
+                                </span>
+                              )}
+                              {variant.size && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                  {variant.size}
+                                </span>
+                              )}
+                            </div>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              variant.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                              variant.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {variant.status}
+                            </span>
+                          </div>
                         
                         <div className="space-y-2">
                           <div className="flex justify-between">
@@ -990,7 +1056,7 @@ export default function InventoryPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      ))}
                   </div>
                   
                   {/* Summary */}
