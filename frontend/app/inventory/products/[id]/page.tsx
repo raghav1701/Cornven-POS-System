@@ -25,7 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 
 export default function TenantProductsPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const [products, setProducts] = useState<AdminProduct[]>([]);
@@ -39,6 +39,16 @@ export default function TenantProductsPage() {
 
 
   useEffect(() => {
+    // Wait for auth to finish loading before checking authentication
+    if (authLoading) {
+      return;
+    }
+    
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+
     const loadTenantProducts = async () => {
       try {
         setLoading(true);
@@ -77,7 +87,7 @@ export default function TenantProductsPage() {
     };
 
     loadTenantProducts();
-  }, [params.id]);
+  }, [user, authLoading, params.id, router]);
 
   const getStatusColor = (status: string) => {
     switch (status?.toUpperCase() || 'PENDING') {
@@ -99,7 +109,7 @@ export default function TenantProductsPage() {
     product.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navigation />
