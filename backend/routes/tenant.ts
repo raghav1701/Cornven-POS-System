@@ -1,49 +1,19 @@
 // src/routes/tenant.ts
-
 import { Router } from "express";
-import {
-  Role,
-  InventoryChangeType,
-  ProductStatus,
-  BarcodeType,
-} from "@prisma/client";
+import { Role, InventoryChangeType, BarcodeType } from "@prisma/client";
 import { summarizeRental } from "../utils/billing";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
-import { recomputeProductAggregates } from "../utils/products";
-import {
-  generateBarcode as genBC,
-  generateBarcode,
-  validateBarcode as valBC,
-  validateBarcode,
-} from "../utils/barcode";
-import { randomBytes } from "node:crypto";
+import { generateBarcode } from "../utils/barcode";
 
 const router = Router();
 
 // apply tenant-only guard to *all* tenant routes
 router.use(...requireAuth(Role.TENANT));
 
-function fallbackGenerateBarcode(type: BarcodeType = "CODE128") {
-  // 20-char A–Z0–9, scanner-friendly, high entropy
-  const bytes = randomBytes(16);
-  return bytes
-    .toString("base64") // base64 => A–Z a–z 0–9 + / =
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "") // keep only A–Z 0–9
-    .slice(0, 20);
-}
-
-function fallbackValidateBarcode(
-  value: string,
-  _type: BarcodeType = "CODE128"
-) {
-  return /^[A-Z0-9\-_.]{6,32}$/.test(value);
-}
-
 /**
  * GET /tenant/my-details
- * Returns loggedIn tenant details
+ * Returns logged-in tenant details
  */
 router.get("/my-details", async (req, res) => {
   try {
@@ -51,19 +21,10 @@ router.get("/my-details", async (req, res) => {
       where: { userId: req.user!.userId },
       include: {
         user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
+          select: { id: true, name: true, email: true, phone: true },
         },
         rentals: {
-          // If you only want their *current*/active rental, uncomment the `where`:
-          // where: { status: RentalStatus.ACTIVE },
-          include: {
-            cube: true,
-          },
+          include: { cube: true },
         },
       },
     });
@@ -81,21 +42,34 @@ router.get("/my-details", async (req, res) => {
 });
 
 /**
+ * GET /tenant/products
+ * List all of your products with variants & logs
+ */
+router.get("/products", async (req, res) => {
+  const products = await prisma.product.findMany({
+    where: { tenant: { userId: req.user!.userId } },
+    include: {
+      variants: { orderBy: { createdAt: "asc" } },
+      logs: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  res.json(products);
+});
+
+/**
  * POST /tenant/products
- * Submit a new product for approval
+ * Submit a new product with variants (server generates barcodes for variants)
  */
 router.post("/products", async (req, res) => {
-  const { name, description, category, sku, variants } = req.body as {
+  const { name, description, category, variants } = req.body as {
     name: string;
     description?: string;
     category?: string;
-    sku?: string;
     variants: Array<{
       color: string;
       size: string;
       price: number;
       stock: number;
-      sku?: string;
     }>;
   };
 
@@ -106,6 +80,7 @@ router.post("/products", async (req, res) => {
         .json({ error: "name and at least one variant are required" });
       return;
     }
+
     for (const v of variants) {
       if (
         !v.color ||
@@ -120,31 +95,23 @@ router.post("/products", async (req, res) => {
       }
     }
 
-    const productPrice = Math.min(...variants.map((v) => v.price));
-    const productStock = variants.reduce((s, v) => s + v.stock, 0);
-
-    // Create the product with server-generated barcodes for variants
     const product = await prisma.product.create({
       data: {
         tenant: { connect: { userId: req.user!.userId } },
         name,
         description,
         category,
-        sku,
-        price: productPrice,
-        stock: productStock,
         variants: {
           create: variants.map((v) => ({
             color: v.color,
             size: v.size,
             price: v.price,
             stock: v.stock,
-            sku: v.sku,
             barcode: generateBarcode("CODE128"),
             barcodeType: "CODE128",
+            // VariantStatus has default in schema; no need to set here unless you want to
           })),
         },
-        status: ProductStatus.PENDING,
         logs: {
           create: [
             {
@@ -163,9 +130,10 @@ router.post("/products", async (req, res) => {
   } catch (err: any) {
     console.error(err);
     if (err.code === "P2002") {
-      res
-        .status(409)
-        .json({ error: "Duplicate constraint (SKU or color+size or barcode)" });
+      // Unique violation: likely duplicate (productId,color,size) or barcode
+      res.status(409).json({
+        error: "Duplicate constraint (color+size per product or barcode)",
+      });
     } else if (err.code === "P2003") {
       res.status(400).json({ error: "Tenant profile not found" });
     } else {
@@ -174,14 +142,10 @@ router.post("/products", async (req, res) => {
   }
 });
 
-// PUT /tenant/products/:id
-router.put("/products/:id", async (_req, res) => {
-  res.status(410).json({
-    error: "This endpoint is deprecated. Edit price/stock via variants.",
-    use: "PUT /tenant/products/:productId/variants/:variantId",
-  });
-});
-
+/**
+ * POST /tenant/products/:productId/variants
+ * Create a new variant (barcode generated server-side)
+ */
 // POST /tenant/products/:productId/variants
 router.post("/products/:productId/variants", async (req, res) => {
   const { productId } = req.params;
@@ -203,11 +167,10 @@ router.post("/products/:productId/variants", async (req, res) => {
       return;
     }
 
-    // Always generate on server
+    // generate a unique barcode (retry on rare collision)
     let code = generateBarcode("CODE128");
-    let variant = null;
-    let tries = 0;
-    while (tries < 5) {
+    let variant = null as null | { id: string; barcode: string };
+    for (let tries = 0; tries < 5; tries++) {
       try {
         variant = await prisma.productVariant.create({
           data: {
@@ -216,10 +179,10 @@ router.post("/products/:productId/variants", async (req, res) => {
             size,
             price,
             stock,
-            sku,
             barcode: code,
             barcodeType: "CODE128",
           },
+          select: { id: true, barcode: true },
         });
         break;
       } catch (e: any) {
@@ -227,8 +190,7 @@ router.post("/products/:productId/variants", async (req, res) => {
           e.code === "P2002" &&
           String(e.meta?.target || "").includes("barcode")
         ) {
-          code = generateBarcode("CODE128");
-          tries++;
+          code = generateBarcode("CODE128"); // new attempt
           continue;
         }
         if (e.code === "P2002") {
@@ -247,40 +209,30 @@ router.post("/products/:productId/variants", async (req, res) => {
       return;
     }
 
-    await prisma.$transaction([
-      prisma.inventoryLog.create({
-        data: {
-          productId,
-          productVariantId: variant.id,
-          userId: req.user!.userId,
-          changeType: InventoryChangeType.VARIANT_CREATE,
-          previousValue: null,
-          newValue: JSON.stringify({
-            color,
-            size,
-            price,
-            stock,
-            sku,
-            barcode: variant.barcode,
-          }),
-        },
-      }),
-      prisma.inventoryLog.create({
-        data: {
-          productId,
-          productVariantId: variant.id,
-          userId: req.user!.userId,
-          changeType: InventoryChangeType.VARIANT_BARCODE_SET,
-          previousValue: null,
-          newValue: variant.barcode,
-        },
-      }),
-    ]);
+    // single log entry only
+    await prisma.inventoryLog.create({
+      data: {
+        productId,
+        productVariantId: variant.id,
+        userId: req.user!.userId,
+        changeType: InventoryChangeType.VARIANT_CREATE,
+        previousValue: null,
+        newValue: JSON.stringify({
+          color,
+          size,
+          price,
+          stock,
+          sku,
+          barcode: variant.barcode,
+        }),
+      },
+    });
 
-    // If you maintain product-level aggregates:
-    // await recomputeProductAggregates(productId);
-
-    res.status(201).json(variant);
+    // return the created variant
+    const full = await prisma.productVariant.findUnique({
+      where: { id: variant.id },
+    });
+    res.status(201).json(full);
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Failed to create variant" });
@@ -305,6 +257,7 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
         product: { select: { id: true, tenant: { select: { userId: true } } } },
       },
     });
+
     if (
       !variant ||
       variant.product.id !== productId ||
@@ -345,13 +298,13 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
       return;
     }
 
+    // Product-level aggregates no longer exist; just update variant + logs
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.productVariant.update({
         where: { id: variantId },
         data: updates,
       });
       if (logs.length) await tx.inventoryLog.createMany({ data: logs });
-      await recomputeProductAggregates(productId);
       return u;
     });
 
@@ -366,7 +319,7 @@ router.put("/products/:productId/variants/:variantId", async (req, res) => {
  * DELETE /tenant/products/:productId/variants/:variantId
  * Delete variant (forbid deleting the last one)
  */
-//
+// DELETE /tenant/products/:productId/variants/:variantId
 router.delete("/products/:productId/variants/:variantId", async (req, res) => {
   const { productId, variantId } = req.params;
 
@@ -385,8 +338,29 @@ router.delete("/products/:productId/variants/:variantId", async (req, res) => {
     }
 
     await prisma.$transaction(async (tx) => {
+      // load the variant we’re deleting (to capture current status)
+      const v = await tx.productVariant.findUnique({
+        where: { id: variantId },
+        select: { id: true, status: true },
+      });
+      if (!v) {
+        throw new Error("Variant not found");
+      }
+
+      // write a deletion log (reusing VARIANT_STATUS_UPDATE)
+      await tx.inventoryLog.create({
+        data: {
+          productId,
+          productVariantId: variantId,
+          userId: req.user!.userId,
+          changeType: InventoryChangeType.VARIANT_STATUS_UPDATE,
+          previousValue: v.status, // e.g. "PENDING" | "APPROVED" | "REJECTED"
+          newValue: "DELETED", // marker string; no enum/migration needed
+        },
+      });
+
+      // delete the variant
       await tx.productVariant.delete({ where: { id: variantId } });
-      await recomputeProductAggregates(productId);
     });
 
     res.status(204).send();
@@ -394,21 +368,6 @@ router.delete("/products/:productId/variants/:variantId", async (req, res) => {
     console.error(err);
     res.status(400).json({ error: "Failed to delete variant" });
   }
-});
-
-/**
- * GET /tenant/products
- * List all of your products (with status)
- */
-router.get("/products", async (req, res) => {
-  const products = await prisma.product.findMany({
-    where: { tenant: { userId: req.user!.userId } },
-    include: {
-      variants: { orderBy: { createdAt: "asc" } },
-      logs: { orderBy: { createdAt: "asc" } },
-    },
-  });
-  res.json(products);
 });
 
 /**
@@ -429,7 +388,6 @@ router.get("/my-billing", async (req, res) => {
     const rental = await prisma.rental.findFirst({
       where: {
         tenantId: tenant.id,
-        // include both ACTIVE and UPCOMING (tenants might want to prepay)
         status: { in: ["ACTIVE", "UPCOMING"] },
       },
       include: { cube: true },
