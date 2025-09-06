@@ -161,7 +161,7 @@ const PaymentHistoryPage = () => {
                 <h3 className="text-lg font-medium text-red-800">Error Loading Payment History</h3>
                 <p className="text-red-600 mt-1">{error}</p>
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => loadPaymentHistory()}
                   className="mt-3 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
                 >
                   Retry

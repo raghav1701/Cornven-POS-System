@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import Navigation from '@/components/Navigation';
 import { getRolePermissions } from '@/data/mockAuth';
+import { DashboardSkeleton } from '@/components/Skeleton';
+import AuthGuard from '@/components/AuthGuard';
 import { mockDashboardStats } from '@/data/mockSales';
 import { mockProducts, getProductsByCategory, getLowStockProducts } from '@/data/mockProducts';
 import { mockPaymentRecords } from '@/data/mockSales';
@@ -15,7 +18,15 @@ import { adminProductService, AdminProduct } from '@/services/adminProductServic
 type AdminTabType = 'dashboard' | 'logs' | 'rental-history';
 
 const AdminDashboard = () => {
-  const { user, isLoading } = useAuth();
+  return (
+    <AuthGuard requiredRole="ADMIN">
+      <AdminDashboardContent />
+    </AuthGuard>
+  );
+};
+
+const AdminDashboardContent = () => {
+  const { user } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTabType>('dashboard');
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -35,32 +46,19 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
-
-      const permissions = getRolePermissions(user.role);
-      if (!permissions.includes('admin-dashboard')) {
-        router.push('/');
-        return;
-      }
-
-      // Load dashboard data
-      setStats(mockDashboardStats);
-      setLowStockProducts(getLowStockProducts());
-      
-      // Get recent payments (last 10)
-      const sortedPayments = [...mockPaymentRecords]
-        .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
-        .slice(0, 10);
-      setRecentPayments(sortedPayments);
-      
-      // Load admin products for logs
-      loadAdminProducts();
-    }
-  }, [user, isLoading, router]);
+    // Load dashboard data
+    setStats(mockDashboardStats);
+    setLowStockProducts(getLowStockProducts());
+    
+    // Get recent payments (last 10)
+    const sortedPayments = [...mockPaymentRecords]
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
+      .slice(0, 10);
+    setRecentPayments(sortedPayments);
+    
+    // Load admin products for logs
+    loadAdminProducts();
+  }, []);
 
   const downloadPaymentHistory = () => {
     const csvContent = "data:text/csv;charset=utf-8," + 
@@ -94,27 +92,19 @@ const AdminDashboard = () => {
     document.body.removeChild(link);
   };
 
-  if (isLoading) {
+  if (!stats) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600">Loading dashboard...</span>
-          </div>
+          <DashboardSkeleton />
         </div>
       </div>
     );
   }
 
-  if (!user || !stats) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation component needs to be imported and defined */}
-      {/* Temporarily removing Navigation component until it is properly imported */}
+      <Navigation />
       <div className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">

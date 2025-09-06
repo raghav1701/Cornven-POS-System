@@ -1,35 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getRolePermissions, getRoleDisplayName } from '@/data/mockAuth';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function Home() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
+  );
+}
+
+function DashboardContent() {
+  const { user, logout } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/auth');
-    }
-    // Remove automatic redirects - let users choose their module from the dashboard
-  }, [isAuthenticated, isLoading, router]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !user) {
-    return null; // Will redirect to auth
+  if (!user) {
+    return null; // This shouldn't happen with AuthGuard, but satisfies TypeScript
   }
 
   const userPermissions = getRolePermissions(user.role);
@@ -156,9 +146,8 @@ export default function Home() {
           </div>
           <button
             onClick={() => {
-              // Clear localStorage and logout
-              localStorage.removeItem('cornven_user');
-              window.location.reload();
+              logout();
+              router.push('/auth');
             }}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >

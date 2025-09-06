@@ -1,0 +1,173 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: Run TypeScript type check
+      working-directory: ./frontend
+      run: npx tsc --noEmit
+    
+    - name: Run ESLint
+      working-directory: ./frontend
+      run: npm run lint
+    
+    - name: Build application
+      working-directory: ./frontend
+      run: npm run build
+      env:
+        NODE_ENV: production
+    
+    - name: Check for build artifacts
+      working-directory: ./frontend
+      run: |
+        if [ ! -d ".next" ]; then
+          echo "Build failed - .next directory not found"
+          exit 1
+        fi
+        echo "Build successful - .next directory exists"
+    
+    - name: Check bundle size
+      working-directory: ./frontend
+      run: |
+        # Check if build output is reasonable (not too large)
+        BUILD_SIZE=$(du -sh .next | cut -f1)
+        echo "Build size: $BUILD_SIZE"
+        
+        # Optional: Add size limits if needed
+        # if [ $(du -s .next | cut -f1) -gt 100000 ]; then
+        #   echo "Build size too large"
+        #   exit 1
+        # fi
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: Run security audit
+      working-directory: ./frontend
+      run: npm audit --audit-level=moderate
+    
+    - name: Check for secrets in code
+      working-directory: ./frontend
+      run: |
+        # Check for potential secrets or API keys
+        if grep -r "sk_" . --exclude-dir=node_modules --exclude-dir=.git || \
+           grep -r "pk_" . --exclude-dir=node_modules --exclude-dir=.git || \
+           grep -r "api_key" . --exclude-dir=node_modules --exclude-dir=.git; then
+          echo "Potential secrets found in code"
+          exit 1
+        fi
+        echo "No obvious secrets found"
+
+  reliability:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: Check for console.log statements
+      working-directory: ./frontend
+      run: |
+        # Check for console.log in production code (excluding test files)
+        if find . -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | \
+           grep -v node_modules | \
+           grep -v ".next" | \
+           grep -v "test" | \
+           xargs grep -l "console\.log" 2>/dev/null; then
+          echo "Warning: console.log statements found in production code"
+          echo "These should be removed or replaced with proper logging"
+          # Don't fail the build, just warn
+        fi
+    
+    - name: Check for TODO/FIXME comments
+      working-directory: ./frontend
+      run: |
+        # Check for TODO/FIXME comments that might indicate incomplete work
+        TODO_COUNT=$(find . -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | \
+                    grep -v node_modules | \
+                    grep -v ".next" | \
+                    xargs grep -i "TODO\|FIXME" 2>/dev/null | wc -l || echo "0")
+        
+        echo "Found $TODO_COUNT TODO/FIXME comments"
+        
+        if [ "$TODO_COUNT" -gt 10 ]; then
+          echo "Warning: High number of TODO/FIXME comments ($TODO_COUNT)"
+          echo "Consider addressing these before production deployment"
+        fi
+    
+    - name: Validate package.json
+      working-directory: ./frontend
+      run: |
+        # Check for missing or problematic dependencies
+        node -e "
+          const pkg = require('./package.json');
+          
+          // Check for missing scripts
+          const requiredScripts = ['build', 'start', 'dev'];
+          const missingScripts = requiredScripts.filter(script => !pkg.scripts[script]);
+          
+          if (missingScripts.length > 0) {
+            console.error('Missing required scripts:', missingScripts);
+            process.exit(1);
+          }
+          
+          // Check for development dependencies in production
+          const devDepsInProd = Object.keys(pkg.dependencies || {}).filter(dep => 
+            dep.includes('test') || dep.includes('mock') || dep.includes('dev')
+          );
+          
+          if (devDepsInProd.length > 0) {
+            console.warn('Potential dev dependencies in production:', devDepsInProd);
+          }
+          
+          console.log('Package.json validation passed');
+        "

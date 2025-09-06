@@ -25,22 +25,21 @@ const RentalsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const loadRentals = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        // Check if auth token exists
-        const token = authService.getAuthToken();
-        if (!token) {
-          setError('Authentication token not found. Please log in again.');
-          router.push('/auth');
-          return;
-        }
+  const loadRentals = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if auth token exists
+      const token = authService.getAuthToken();
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        router.push('/auth');
+        return;
+      }
 
-        // Fetch real data from API
-        const tenants: AdminTenant[] = await adminTenantService.getTenants();
+      // Fetch real data from API
+      const tenants: AdminTenant[] = await adminTenantService.getTenants();
         
         // Convert tenant data to rental format
         const rentalsData: Rental[] = [];
@@ -93,6 +92,7 @@ const RentalsPage = () => {
       }
     };
 
+  useEffect(() => {
     loadRentals();
   }, [router]);
 
@@ -163,7 +163,11 @@ const RentalsPage = () => {
                 <h3 className="text-lg font-medium text-red-800">Error Loading Rentals</h3>
                 <p className="text-red-600 mt-1">{error}</p>
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => {
+                    setError(null);
+                    setLoading(true);
+                    loadRentals();
+                  }}
                   className="mt-3 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
                 >
                   Retry

@@ -7,6 +7,7 @@ import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
 import { authService } from '@/services/authService';
 import { calculateTenantStatus, updateTenantRentalStatuses } from '@/utils/tenantStatus';
 import Navigation from '@/components/Navigation';
+import { TableRowSkeleton } from '@/components/Skeleton';
 
 interface Rental {
   id: string;
@@ -26,22 +27,21 @@ const RentalsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const loadRentals = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        // Check if auth token exists
-        const token = authService.getAuthToken();
-        if (!token) {
-          setError('Authentication token not found. Please log in again.');
-          router.push('/auth');
-          return;
-        }
+  const loadRentals = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if auth token exists
+      const token = authService.getAuthToken();
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        router.push('/auth');
+        return;
+      }
 
-        // Fetch real data from API
-        const tenants: AdminTenant[] = await adminTenantService.getTenants();
+      // Fetch real data from API
+      const tenants: AdminTenant[] = await adminTenantService.getTenants();
         
         // Update rental statuses dynamically on frontend
         const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(tenants);
@@ -100,6 +100,7 @@ const RentalsPage = () => {
       }
     };
 
+  useEffect(() => {
     loadRentals();
   }, [router]);
 
@@ -140,10 +141,54 @@ const RentalsPage = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navigation />
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            <span className="ml-3 text-gray-600">Loading rentals...</span>
+        <div className="max-w-7xl mx-auto p-6">
+          {/* Header Skeleton */}
+          <div className="mb-6">
+            <div className="h-4 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
+            <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
+          </div>
+
+          {/* Search Skeleton */}
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <div className="h-4 bg-gray-200 rounded w-32 mb-2 animate-pulse"></div>
+            <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+          </div>
+
+          {/* Table Skeleton */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="h-6 bg-gray-200 rounded w-48 mb-1 animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded w-80 animate-pulse"></div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tenant
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Property
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rent Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <TableRowSkeleton key={index} columns={5} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -163,7 +208,11 @@ const RentalsPage = () => {
                 <h3 className="text-lg font-medium text-red-800">Error Loading Rentals</h3>
                 <p className="text-red-600 mt-1">{error}</p>
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => {
+                    setError(null);
+                    setLoading(true);
+                    loadRentals();
+                  }}
                   className="mt-3 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
                 >
                   Retry

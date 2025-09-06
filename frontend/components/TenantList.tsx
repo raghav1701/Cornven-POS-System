@@ -7,9 +7,10 @@ interface TenantListProps {
   tenants?: Tenant[];
   onViewTenant: (tenantId: string) => void;
   onAddNew: () => void;
+  onRetry?: () => void;
 }
 
-export default function TenantList({ tenants: propTenants, onViewTenant, onAddNew }: TenantListProps) {
+export default function TenantList({ tenants: propTenants, onViewTenant, onAddNew, onRetry }: TenantListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [apiTenants, setApiTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -102,7 +103,7 @@ export default function TenantList({ tenants: propTenants, onViewTenant, onAddNe
           <p className="mt-1 text-sm text-gray-500">{error}</p>
           <div className="mt-6">
             <button 
-              onClick={() => window.location.reload()} 
+              onClick={() => onRetry?.()} 
               className="btn-primary"
             >
               Try again
