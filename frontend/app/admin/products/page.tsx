@@ -42,7 +42,11 @@ const AdminProducts = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`https://cornven-pos-system.vercel.app/variants/${variantId}/barcode.png`, {
+      const baseUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api` 
+        : 'https://cornven.vercel.app/api';
+
+      const response = await fetch(`${baseUrl}/variants/${variantId}/barcode.png`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -73,7 +77,11 @@ const AdminProducts = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`https://cornven-pos-system.vercel.app/variants/lookup?barcode=${encodeURIComponent(barcode)}`, {
+      const baseUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api` 
+        : 'https://cornven.vercel.app/api';
+
+      const response = await fetch(`${baseUrl}/variants/lookup?barcode=${encodeURIComponent(barcode)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

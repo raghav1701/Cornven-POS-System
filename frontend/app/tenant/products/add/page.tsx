@@ -257,12 +257,12 @@ export default function AddProductPage() {
 
           {/* Image Upload */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Product Image</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4"></h2>
             
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+            <div >
               {imagePreview ? (
                 <div className="flex items-center space-x-4">
-                  <img
+                  {/* <img
                     src={imagePreview}
                     alt="Product preview"
                     className="w-24 h-24 object-cover rounded-lg border"
@@ -277,37 +277,16 @@ export default function AddProductPage() {
                       <X className="w-4 h-4 mr-1" />
                       Remove Image
                     </button>
-                  </div>
+                  </div> */}
                 </div>
               ) : (
-                <div className="text-center">
-                  <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
-                  <div className="mt-4">
-                    <label className="cursor-pointer">
-                      <span className="mt-2 block text-sm font-medium text-gray-900">
-                        Upload product image
-                      </span>
-                      <span className="mt-1 block text-sm text-gray-500">
-                        PNG, JPG up to 5MB (will be resized to 1:1 ratio)
-                      </span>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                      <span className="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Choose Image
-                      </span>
-                    </label>
-                  </div>
+                <div >
+                  
                 </div>
               )}
             </div>
             
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            {/* <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
                 <strong>Google Drive Integration:</strong> To use Google Drive for image hosting:
                 <br />• Upload your image to Google Drive
@@ -316,7 +295,7 @@ export default function AddProductPage() {
                 <br />• Use format: https://drive.google.com/uc?id=YOUR_FILE_ID
                 <br />• Paste this URL in the "Image URL" field below
               </p>
-            </div>
+            </div> */}
             
 
           </div>

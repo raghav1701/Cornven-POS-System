@@ -27,6 +27,11 @@ const ProductDetailsPage = () => {
   const [activeTab, setActiveTab] = useState<'variants' | 'logs'>('variants');
   const [selectedLog, setSelectedLog] = useState<ProductLog | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [variantSearchTerm, setVariantSearchTerm] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [variantImages, setVariantImages] = useState<{ [key: string]: string }>({});
+  const [variantImageLoading, setVariantImageLoading] = useState<{ [key: string]: boolean }>({});
   const [snackbar, setSnackbar] = useState({
     isVisible: false,
     message: '',
@@ -98,6 +103,53 @@ const ProductDetailsPage = () => {
     setShowLogModal(false);
     setSelectedLog(null);
   };
+
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setIsImageModalOpen(true);
+  };
+
+  const closeImageModal = () => {
+    setIsImageModalOpen(false);
+    setSelectedImage(null);
+  };
+
+  // Variant Image API functions
+  const fetchVariantImage = async (variantId: string) => {
+    if (variantImages[variantId] || variantImageLoading[variantId]) {
+      return; // Already loaded or loading
+    }
+
+    console.log('Fetching image for variant:', variantId);
+    setVariantImageLoading(prev => ({ ...prev, [variantId]: true }));
+    try {
+      const response = await tenantPortalService.getVariantImageUrlSafe(variantId);
+      console.log('Variant image response:', response);
+      if (response && response.url) {
+        setVariantImages(prev => ({ ...prev, [variantId]: response.url }));
+      } else {
+        console.warn(`No image URL available for variant ${variantId}`);
+        setVariantImages(prev => ({ ...prev, [variantId]: 'No image' }));
+      }
+    } catch (error) {
+      console.error('Error fetching variant image:', error);
+      // Set a placeholder or error state
+      setVariantImages(prev => ({ ...prev, [variantId]: '' }));
+    } finally {
+      setVariantImageLoading(prev => ({ ...prev, [variantId]: false }));
+    }
+  };
+
+  // Fetch images for all variants when product is loaded
+  useEffect(() => {
+    if (product && product.variants) {
+      product.variants.forEach(variant => {
+        if (variant.id && variant.imageKey) {
+          fetchVariantImage(variant.id);
+        }
+      });
+    }
+  }, [product]);
 
   const formatLogChangeType = (changeType: string) => {
     const types: { [key: string]: string } = {
@@ -235,57 +287,131 @@ const ProductDetailsPage = () => {
 
           {/* Variants Tab */}
           {activeTab === 'variants' && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                    
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {product.variants && product.variants.length > 0 ? (
-                    product.variants.map((variant) => (
-                      <tr
-                        key={variant.id}
-                        className="hover:bg-gray-50 cursor-pointer"
-                        onClick={() => variant.id && handleVariantClick(variant.id)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{variant.color}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{variant.size}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${variant.price?.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{variant.stock}</td>
-
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {variant.createdAt ? new Date(variant.createdAt).toLocaleDateString() : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              variant.id && handleVariantClick(variant.id);
-                            }}
-                            className="text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                        No variants available for this product
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="p-6">
+              {product.variants && product.variants.length > 0 ? (
+                <div>
+                  {/* Search Bar */}
+                  <div className="mb-6">
+                    <input
+                      type="text"
+                      value={variantSearchTerm}
+                      onChange={(e) => setVariantSearchTerm(e.target.value)}
+                      placeholder="Search variants by color, size, SKU, or barcode..."
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {/* Variants Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {product.variants
+                      .filter((variant) => {
+                        if (!variantSearchTerm) return true;
+                        const searchLower = variantSearchTerm.toLowerCase();
+                        return (
+                          variant.color?.toLowerCase().includes(searchLower) ||
+                          variant.size?.toLowerCase().includes(searchLower) ||
+                          variant.barcode?.toLowerCase().includes(searchLower)
+                        );
+                      })
+                      .map((variant) => {
+                        return (
+                          <div key={variant.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow duration-200">
+                            {/* Variant Image */}
+                             <div className="mb-4">
+                               <div className="w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
+                                 {variantImageLoading[variant.id || ''] ? (
+                                   <div className="w-full h-full flex items-center justify-center">
+                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                   </div>
+                                 ) : variantImages[variant.id || ''] && variantImages[variant.id || ''] !== 'No image' && variantImages[variant.id || ''] !== '' ? (
+                                   <img 
+                                     src={variantImages[variant.id || '']}
+                                     alt={`${variant.color} - ${variant.size}`}
+                                     className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                                     onClick={() => handleImageClick(variantImages[variant.id || ''])}
+                                     onError={(e) => {
+                                       const target = e.target as HTMLImageElement;
+                                       target.style.display = 'none';
+                                       target.nextElementSibling?.classList.remove('hidden');
+                                     }}
+                                   />
+                                 ) : (
+                                   <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                     <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                     </svg>
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                            
+                            {/* Variant Details */}
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap gap-2">
+                                {variant.color && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    {variant.color}
+                                  </span>
+                                )}
+                                {variant.size && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {variant.size}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-gray-600">Price:</span>
+                                  <span className="text-lg font-bold text-green-600">${variant.price?.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-gray-600">Stock:</span>
+                                  <span className={`text-sm font-semibold ${
+                                    (variant.stock || 0) > 10 ? 'text-green-600' : 
+                                    (variant.stock || 0) > 0 ? 'text-yellow-600' : 'text-red-600'
+                                  }`}>
+                                    {variant.stock || 0} units
+                                  </span>
+                                </div>
+                                {variant.barcode && (
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-gray-600">Barcode:</span>
+                                    <span className="text-xs text-gray-500 font-mono">{variant.barcode}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-gray-600">Created:</span>
+                                  <span className="text-xs text-gray-500">
+                                    {variant.createdAt ? new Date(variant.createdAt).toLocaleDateString() : 'N/A'}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Action Button */}
+                              <button
+                                onClick={() => variant.id && handleVariantClick(variant.id)}
+                                className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center justify-center"
+                              >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit Variant
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 text-6xl mb-4">📦</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Variants Available</h3>
+                  <p className="text-gray-500">This product doesn't have any variants yet.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -352,6 +478,28 @@ const ProductDetailsPage = () => {
         isVisible={snackbar.isVisible}
         onClose={closeSnackbar}
       />
+
+      {/* Image Modal */}
+      {isImageModalOpen && selectedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={closeImageModal}>
+          <div className="relative max-w-4xl max-h-[90vh] mx-4">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img
+              src={selectedImage}
+              alt="Product variant"
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Log Details Modal */}
       {showLogModal && selectedLog && (

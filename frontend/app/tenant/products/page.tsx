@@ -28,11 +28,46 @@ const TenantProductsContent = () => {
     description: '',
     category: '',
   });
+  const [variantImages, setVariantImages] = useState<{ [key: string]: string }>({});
+  const [variantImageLoading, setVariantImageLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     // Load tenant products from API
     loadProducts();
   }, []);
+
+  const loadVariantImage = async (variantId: string) => {
+    if (variantImages[variantId] || variantImageLoading[variantId]) {
+      return;
+    }
+
+    setVariantImageLoading(prev => ({ ...prev, [variantId]: true }));
+    
+    try {
+      const response = await tenantPortalService.getVariantImageUrlSafe(variantId);
+      if (response && response.url) {
+        setVariantImages(prev => ({ ...prev, [variantId]: response.url }));
+      } else {
+        setVariantImages(prev => ({ ...prev, [variantId]: 'No image' }));
+      }
+    } catch (error) {
+      console.error('Failed to load variant image:', error);
+      setVariantImages(prev => ({ ...prev, [variantId]: '' }));
+    } finally {
+      setVariantImageLoading(prev => ({ ...prev, [variantId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    // Load images for all variants that have imageKeys
+    products.forEach(product => {
+      product.variants?.forEach(variant => {
+        if (variant.id && variant.imageKey && !variantImages[variant.id]) {
+          loadVariantImage(variant.id);
+        }
+      });
+    });
+  }, [products]);
 
   const loadProducts = async () => {
     try {
@@ -293,27 +328,28 @@ const TenantProductsContent = () => {
                   {products.map((product) => {
                     // Find the first variant with an image
                     const variantWithImage = product.variants?.find(variant => variant.imageKey);
-                    const imageUrl = variantWithImage?.imageKey 
-                      ? `https://cornven-pos-system.s3.ap-southeast-2.amazonaws.com/${variantWithImage.imageKey}`
-                      : null;
+                    const imageUrl = variantWithImage?.id ? variantImages[variantWithImage.id] : null;
+                    const isImageLoading = variantWithImage?.id ? variantImageLoading[variantWithImage.id] : false;
                     
                     return (
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                          {imageUrl ? (
-                            <img 
-                              src={imageUrl} 
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                target.nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                          ) : null}
-                          <div className={`${imageUrl ? 'hidden' : ''} text-gray-400`}>
+                          {isImageLoading ? (
+                             <div className="animate-pulse bg-gray-200 w-full h-full rounded-lg"></div>
+                           ) : imageUrl && imageUrl !== 'No image' && imageUrl !== '' ? (
+                             <img 
+                               src={imageUrl} 
+                               alt={product.name}
+                               className="w-full h-full object-cover"
+                               onError={(e) => {
+                                 const target = e.target as HTMLImageElement;
+                                 target.style.display = 'none';
+                                 target.nextElementSibling?.classList.remove('hidden');
+                               }}
+                             />
+                           ) : null}
+                           <div className={`${imageUrl && imageUrl !== 'No image' && imageUrl !== '' ? 'hidden' : ''} text-gray-400`}>
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
