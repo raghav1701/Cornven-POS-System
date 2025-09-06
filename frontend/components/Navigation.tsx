@@ -30,7 +30,7 @@ const Navigation = () => {
                         pathname.startsWith('/rentals');
     
     if (isModulePage) {
-      // Show only 4 menu items for module pages
+      // Show menu items for module pages
       if (userPermissions.includes('tenants')) {
         baseItems.push({ name: 'Modules', href: '/admin', permission: 'tenants' });
         baseItems.push({ name: 'Tenant', href: '/admin/tenants', permission: 'tenants' });
@@ -40,6 +40,9 @@ const Navigation = () => {
       }
       if (userPermissions.includes('tenants')) {
         baseItems.push({ name: 'Rentals', href: '/rentals', permission: 'tenants' });
+      }
+      if (userPermissions.includes('admin-products')) {
+        baseItems.push({ name: 'Approvals', href: '/admin/products', permission: 'admin-products' });
       }
     } else {
       // Show all menu items for other pages
@@ -51,7 +54,7 @@ const Navigation = () => {
         baseItems.push({ name: 'Tenants', href: '/admin/tenants', permission: 'tenants' });
       }
       if (userPermissions.includes('admin-products')) {
-        // baseItems.push({ name: 'Products', href: '/admin/products', permission: 'admin-products' });
+        baseItems.push({ name: 'Approvals', href: '/admin/products', permission: 'admin-products' });
       }
       if (userPermissions.includes('admin-sales')) {
         baseItems.push({ name: 'Sales', href: '/admin/sales', permission: 'admin-sales' });

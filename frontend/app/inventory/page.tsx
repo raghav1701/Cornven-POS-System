@@ -24,7 +24,8 @@ import {
   User,
   ArrowLeft,
   ShoppingBag,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from 'lucide-react';
 import { 
   mockProducts, 
@@ -194,6 +195,9 @@ export default function InventoryPage() {
   });
   
   const [tenantStatusFilter, setTenantStatusFilter] = useState<string>('');
+  const [adminProducts, setAdminProducts] = useState<AdminProduct[]>([]);
+  const [filteredAdminProducts, setFilteredAdminProducts] = useState<AdminProduct[]>([]);
+  const [approvalLoading, setApprovalLoading] = useState<string | null>(null);
 
   // Load API products
   const loadApiProducts = async () => {
@@ -240,10 +244,57 @@ export default function InventoryPage() {
     }
   };
 
+  // Load admin products for approvals
+  const loadAdminProducts = async () => {
+    try {
+      const products = await adminProductService.getAllProducts();
+      setAdminProducts(products);
+    } catch (error) {
+      console.error('Error loading admin products:', error);
+    }
+  };
+
+  // Handle approval/rejection
+  const handleApproval = async (productId: string, approve: boolean) => {
+    try {
+      setApprovalLoading(productId);
+      await adminProductService.approveProduct(productId, approve);
+      // Reload products after approval
+      await loadAdminProducts();
+    } catch (error) {
+      console.error('Error updating approval:', error);
+      alert('Failed to update approval status');
+    } finally {
+      setApprovalLoading(null);
+    }
+  };
+
   useEffect(() => {
     loadAllProducts();
     loadApiTenants();
   }, []);
+
+  // Load admin products when approvals tab is selected
+  useEffect(() => {
+    if (activeTab === 'approvals') {
+      loadAdminProducts();
+    }
+  }, [activeTab]);
+
+  // Filter admin products based on search
+  useEffect(() => {
+    let filtered = adminProducts;
+
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(product => 
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.tenant?.businessName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    setFilteredAdminProducts(filtered);
+  }, [adminProducts, searchQuery]);
 
   // Filter tenants based on search and status
   const filteredTenants = useMemo(() => {
@@ -530,6 +581,16 @@ export default function InventoryPage() {
                 }`}
               >
                 Artists
+              </button>
+              <button
+                onClick={() => setActiveTab('approvals')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'approvals'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Approvals
               </button>
             </nav>
           </div>
@@ -883,6 +944,132 @@ export default function InventoryPage() {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'approvals' && (
+              <div>
+                {/* Search and Refresh */}
+                <div className="mb-6">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                        <input
+                          type="text"
+                          placeholder="Search by name, SKU, or tenant..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => loadAdminProducts()}
+                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredAdminProducts.map((product) => (
+                        <tr key={product.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.sku}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.tenant?.businessName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              product.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                              product.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {product.status === 'APPROVED' ? 'Approved' :
+                               product.status === 'REJECTED' ? 'Rejected' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            {product.status === 'PENDING' && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleApproval(product.id, true)}
+                                  disabled={approvalLoading === product.id}
+                                  className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                                >
+                                  {approvalLoading === product.id ? 'Loading...' : 'Approve'}
+                                </button>
+                                <button
+                                  onClick={() => handleApproval(product.id, false)}
+                                  disabled={approvalLoading === product.id}
+                                  className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                                >
+                                  {approvalLoading === product.id ? 'Loading...' : 'Reject'}
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-4">
+                  {filteredAdminProducts.map((product) => (
+                    <div key={product.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-lg font-medium text-gray-900">{product.name}</h3>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          product.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                          product.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {product.status === 'APPROVED' ? 'Approved' :
+                           product.status === 'REJECTED' ? 'Rejected' : 'Pending'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-2">SKU: {product.sku}</p>
+                      <p className="text-sm text-gray-500 mb-3">Tenant: {product.tenant?.businessName}</p>
+                      {product.status === 'PENDING' && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleApproval(product.id, true)}
+                            disabled={approvalLoading === product.id}
+                            className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {approvalLoading === product.id ? 'Loading...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleApproval(product.id, false)}
+                            disabled={approvalLoading === product.id}
+                            className="flex-1 bg-red-600 text-white px-3 py-2 rounded-md text-sm hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {approvalLoading === product.id ? 'Loading...' : 'Reject'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
