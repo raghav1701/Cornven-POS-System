@@ -5,9 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { tenantPortalService, TenantProduct } from '@/services/tenantPortalService';
 import Navigation from '@/components/Navigation';
+import { TableRowSkeleton } from '@/components/Skeleton';
+import AuthGuard from '@/components/AuthGuard';
 
 const TenantProducts = () => {
-  const { user, isLoading } = useAuth();
+  return (
+    <AuthGuard requiredRole="TENANT">
+      <TenantProductsContent />
+    </AuthGuard>
+  );
+};
+
+const TenantProductsContent = () => {
+  const { user } = useAuth();
   const router = useRouter();
   const [products, setProducts] = useState<TenantProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -18,18 +28,46 @@ const TenantProducts = () => {
     description: '',
     category: '',
   });
+  const [variantImages, setVariantImages] = useState<{ [key: string]: string }>({});
+  const [variantImageLoading, setVariantImageLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
+    // Load tenant products from API
+    loadProducts();
+  }, []);
 
-      // Load tenant products from API
-      loadProducts();
+  const loadVariantImage = async (variantId: string) => {
+    if (variantImages[variantId] || variantImageLoading[variantId]) {
+      return;
     }
-  }, [user, isLoading, router]);
+
+    setVariantImageLoading(prev => ({ ...prev, [variantId]: true }));
+    
+    try {
+      const response = await tenantPortalService.getVariantImageUrlSafe(variantId);
+      if (response && response.url) {
+        setVariantImages(prev => ({ ...prev, [variantId]: response.url }));
+      } else {
+        setVariantImages(prev => ({ ...prev, [variantId]: 'No image' }));
+      }
+    } catch (error) {
+      console.error('Failed to load variant image:', error);
+      setVariantImages(prev => ({ ...prev, [variantId]: '' }));
+    } finally {
+      setVariantImageLoading(prev => ({ ...prev, [variantId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    // Load images for all variants that have imageKeys
+    products.forEach(product => {
+      product.variants?.forEach(variant => {
+        if (variant.id && variant.imageKey && !variantImages[variant.id]) {
+          loadVariantImage(variant.id);
+        }
+      });
+    });
+  }, [products]);
 
   const loadProducts = async () => {
     try {
@@ -73,19 +111,7 @@ const TenantProducts = () => {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation />
-        <div className="max-w-7xl mx-auto p-6">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600">Loading...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   if (!user) {
     return (
@@ -230,9 +256,42 @@ const TenantProducts = () => {
           </div>
           
           {productsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-3 text-gray-600">Loading products...</span>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Image
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Category
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Variants
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Base Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Stock
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <TableRowSkeleton key={index} columns={8} />
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : products.length > 0 ? (
             <div className="overflow-x-auto">
@@ -269,27 +328,28 @@ const TenantProducts = () => {
                   {products.map((product) => {
                     // Find the first variant with an image
                     const variantWithImage = product.variants?.find(variant => variant.imageKey);
-                    const imageUrl = variantWithImage?.imageKey 
-                      ? `https://cornven-pos-system.s3.ap-southeast-2.amazonaws.com/${variantWithImage.imageKey}`
-                      : null;
+                    const imageUrl = variantWithImage?.id ? variantImages[variantWithImage.id] : null;
+                    const isImageLoading = variantWithImage?.id ? variantImageLoading[variantWithImage.id] : false;
                     
                     return (
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                          {imageUrl ? (
-                            <img 
-                              src={imageUrl} 
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                target.nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                          ) : null}
-                          <div className={`${imageUrl ? 'hidden' : ''} text-gray-400`}>
+                          {isImageLoading ? (
+                             <div className="animate-pulse bg-gray-200 w-full h-full rounded-lg"></div>
+                           ) : imageUrl && imageUrl !== 'No image' && imageUrl !== '' ? (
+                             <img 
+                               src={imageUrl} 
+                               alt={product.name}
+                               className="w-full h-full object-cover"
+                               onError={(e) => {
+                                 const target = e.target as HTMLImageElement;
+                                 target.style.display = 'none';
+                                 target.nextElementSibling?.classList.remove('hidden');
+                               }}
+                             />
+                           ) : null}
+                           <div className={`${imageUrl && imageUrl !== 'No image' && imageUrl !== '' ? 'hidden' : ''} text-gray-400`}>
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
