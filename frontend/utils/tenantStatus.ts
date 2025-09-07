@@ -1,65 +1,48 @@
 // Unified tenant status calculation utility
 // This ensures consistent status calculation across all pages
+// Uses API rental statuses directly, only calculates AVAILABLE on frontend
 
-export type TenantStatus = "Active" | "Inactive" | "Upcoming" | "Available";
+export type TenantStatus = "Active" | "Expired" | "Upcoming" | "Available";
 
 interface Rental {
   id: string;
   startDate: string;
   endDate: string;
-  status: string;
+  status: "ACTIVE" | "UPCOMING" | "EXPIRED";
   [key: string]: any;
 }
 
-interface TenantWithRentals {
+export interface TenantWithRentals {
   rentals?: Rental[];
   [key: string]: any;
 }
 
 /**
- * Calculate tenant status based on rental data and current date
- * Frontend-only calculation - ignores backend status values
+ * Calculate tenant status based on API rental statuses
+ * Uses backend rental status directly, only frontend logic is for AVAILABLE
  * @param tenant - Tenant object with rentals array
- * @returns TenantStatus - Active, Inactive, Upcoming, or Available
+ * @returns TenantStatus - Active, Expired, Upcoming, or Available
  */
 export const calculateTenantStatus = (tenant: TenantWithRentals): TenantStatus => {
-  // If no rentals exist, tenant is available for new rentals
+  // If no rentals exist, tenant is available for new rentals (frontend-only status)
   if (!tenant.rentals || tenant.rentals.length === 0) {
     return "Available";
   }
 
-  const now = new Date();
-  let hasActiveRental = false;
-  let hasUpcomingRental = false;
-
-  // Check all rentals to determine overall tenant status
-  for (const rental of tenant.rentals) {
-    const startDate = new Date(rental.startDate);
-    const endDate = new Date(rental.endDate);
-
-    // Validate dates
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      console.warn('Invalid rental dates found:', rental);
-      continue;
-    }
-
-    // Calculate rental status dynamically from dates
-    if (now >= startDate && now <= endDate) {
-      hasActiveRental = true;
-    } else if (now < startDate) {
-      hasUpcomingRental = true;
-    }
-  }
-
-  // Determine tenant status based on rental analysis
-  if (hasActiveRental) {
+  // Find the most recent or active rental to determine tenant status
+  // Priority: ACTIVE > UPCOMING > EXPIRED
+  const activeRental = tenant.rentals.find(rental => rental.status === "ACTIVE");
+  if (activeRental) {
     return "Active";
-  } else if (hasUpcomingRental) {
-    return "Upcoming";
-  } else {
-    // All rentals are expired or no valid rentals
-    return "Inactive";
   }
+
+  const upcomingRental = tenant.rentals.find(rental => rental.status === "UPCOMING");
+  if (upcomingRental) {
+    return "Upcoming";
+  }
+
+  // All rentals are expired
+  return "Expired";
 };
 
 /**
@@ -130,7 +113,7 @@ export const getStatusColorClass = (status: TenantStatus): string => {
   switch (status) {
     case "Active":
       return "bg-green-100 text-green-800";
-    case "Inactive":
+    case "Expired":
       return "bg-red-100 text-red-800";
     case "Upcoming":
       return "bg-blue-100 text-blue-800";
@@ -150,8 +133,8 @@ export const getStatusDisplayText = (status: TenantStatus): string => {
   switch (status) {
     case "Active":
       return "Active";
-    case "Inactive":
-      return "Inactive";
+    case "Expired":
+      return "Expired";
     case "Upcoming":
       return "Upcoming";
     case "Available":

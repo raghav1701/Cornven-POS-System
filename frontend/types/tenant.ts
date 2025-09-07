@@ -17,7 +17,7 @@ export interface Tenant {
   cubeId: string;
   leaseStartDate: string;
   leaseEndDate: string;
-  status: 'Upcoming' | 'Active' | 'Inactive' | 'Available';
+  status: 'Upcoming' | 'Active' | 'Expired' | 'Available';
   rentPayments: RentPayment[];
   businessType?: string;
   dailyRent?: number;
@@ -26,7 +26,7 @@ export interface Tenant {
   notes?: string;
 }
 
-export type LeaseStatus = 'Upcoming' | 'Active' | 'Inactive' | 'Available';
+export type LeaseStatus = 'Upcoming' | 'Active' | 'Expired' | 'Available';
 
 export interface TenantFormData {
   name: string;

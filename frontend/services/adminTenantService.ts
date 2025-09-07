@@ -23,7 +23,7 @@ export interface Rental {
   cubeId: string;
   startDate: string;
   endDate: string;
-  status: string;
+  status: "ACTIVE" | "UPCOMING" | "EXPIRED";
   dailyRent: number;
   lastPayment: string | null;
   createdAt: string;
