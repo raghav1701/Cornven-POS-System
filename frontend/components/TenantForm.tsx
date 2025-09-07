@@ -355,6 +355,7 @@ const TenantForm = ({ isOpen, onClose, onSubmit, editingTenant }: TenantFormProp
               {getModalTitle()}
             </h2>
             <button
+              title="Close modal"
               onClick={currentStep === 'form' ? onClose : handleSkipCubeSelection}
               className="text-gray-400 hover:text-gray-600 transition-colors"
             >
@@ -630,10 +631,13 @@ const TenantForm = ({ isOpen, onClose, onSubmit, editingTenant }: TenantFormProp
                             <input
                               type="radio"
                               name="cube"
+                              id={`cube-${cube.id}`}
                               value={cube.id}
                               checked={selectedCube === cube.id}
                               onChange={() => setSelectedCube(cube.id)}
                               className="mr-3 mt-1"
+                              title={`Select cube ${cube.code}`}
+                              aria-label={`Select cube ${cube.code}`}
                             />
                             <div className="flex-1">
                               <h4 className="font-medium text-gray-900 text-sm">{cube.code}</h4>

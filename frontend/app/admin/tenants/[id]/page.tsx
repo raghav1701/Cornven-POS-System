@@ -7,24 +7,19 @@ import Navigation from '@/components/Navigation';
 import { getRolePermissions } from '@/data/mockAuth';
 import { authService } from '@/services/authService';
 import { adminTenantService, AdminTenant } from '@/services/adminTenantService';
+import { calculateTenantStatus } from '@/utils/tenantStatus';
 
 // Using AdminTenant interface from adminTenantService
 
-// Calculate status based on rental dates and status (updated business rules)
-const calculateRentalStatus = (rental: any): "Upcoming" | "Active" | "Inactive" | "Available" => {
-  if (!rental) return "Available"; // No rentals - tenant is approved but hasn't rented any cube
+// Use the unified tenant status calculation from utils
+// This ensures consistency across all pages
+const calculateRentalStatus = (tenant: any): "Upcoming" | "Active" | "Expired" | "Available" => {
+  // Use the same logic as other pages - direct API status usage
+  const tenantWithRentals = {
+    rentals: tenant.rentals || []
+  };
   
-  const now = new Date();
-  const startDate = new Date(rental.startDate);
-  const endDate = new Date(rental.endDate);
-  
-  if (rental.status === "ACTIVE" && now >= startDate && now <= endDate) {
-    return "Active"; // Currently renting and within rental period
-  } else if (now < startDate) {
-    return "Upcoming"; // Has rental but start date is in future
-  } else {
-    return "Inactive"; // Rental period has ended
-  }
+  return calculateTenantStatus(tenantWithRentals);
 };
 
 export default function TenantDetailsPage() {

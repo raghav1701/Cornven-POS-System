@@ -47,7 +47,13 @@ import { authService } from '@/services/authService';
 import { tenantPortalService } from '@/services/tenantPortalService';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from '@/utils/tenantStatus';
+import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses, TenantStatus } from '@/utils/tenantStatus';
+import type { TenantWithRentals } from '@/utils/tenantStatus';
+
+// Extended type for AdminTenant with calculated status
+type AdminTenantWithStatus = AdminTenant & {
+  calculatedStatus: TenantStatus;
+};
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -190,7 +196,7 @@ export default function InventoryPage() {
   const [variantImages, setVariantImages] = useState<{[key: string]: string}>({});
   const [variantImageLoading, setVariantImageLoading] = useState<{[key: string]: boolean}>({});
   const [apiProducts, setApiProducts] = useState<AdminProduct[]>([]);
-  const [apiTenants, setApiTenants] = useState<AdminTenant[]>([]);
+  const [apiTenants, setApiTenants] = useState<AdminTenantWithStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [tenantsLoading, setTenantsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -236,13 +242,13 @@ export default function InventoryPage() {
       console.log('Successfully fetched tenants:', tenants.length, 'items');
       
       // Update rental statuses dynamically on frontend
-      const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(tenants);
+      const tenantsWithUpdatedStatuses = updateTenantRentalStatuses(tenants as TenantWithRentals[]);
       
       // Add calculated status to each tenant
-      const tenantsWithStatus = tenantsWithUpdatedStatuses.map(tenant => ({
-        ...tenant,
+      const tenantsWithStatus: AdminTenantWithStatus[] = tenantsWithUpdatedStatuses.map((tenant: TenantWithRentals) => ({
+        ...(tenant as AdminTenant),
         calculatedStatus: calculateTenantStatus({ ...tenant, rentals: tenant.rentals || [] })
-      })) as unknown as AdminTenant[];
+      }));
       
       setApiTenants(tenantsWithStatus);
     } catch (error) {
@@ -1337,6 +1343,7 @@ export default function InventoryPage() {
                   Barcode for {selectedVariantForBarcode.color} {selectedVariantForBarcode.size}
                 </h2>
                 <button
+                  title="Close modal"
                   onClick={closeBarcodeModal}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -1356,9 +1363,9 @@ export default function InventoryPage() {
                     onChange={(e) => setBarcodeSearchTerm(e.target.value)}
                     placeholder="Enter barcode to search..."
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    onKeyPress={(e) => e.key === 'Enter' && searchBarcode(barcodeSearchTerm)}
+                    onKeyDown={(e) => e.key === 'Enter' && searchBarcode(barcodeSearchTerm)}
                   />
-                  <button
+                  <button type="button"
                     onClick={() => searchBarcode(barcodeSearchTerm)}
                     disabled={barcodeSearchLoading}
                     className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 transition-colors"

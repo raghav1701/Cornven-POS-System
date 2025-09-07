@@ -9,6 +9,16 @@ import { Tenant, TenantFormData, RentPayment } from "@/types/tenant";
 import { getRolePermissions } from "@/data/mockAuth";
 import { adminTenantService } from "@/services/adminTenantService";
 import { calculateTenantStatus, getStatusColorClass, getStatusDisplayText, updateTenantRentalStatuses } from "@/utils/tenantStatus";
+import type { TenantWithRentals } from "@/utils/tenantStatus";
+
+// Import Rental type for proper typing
+interface Rental {
+  id: string;
+  startDate: string;
+  endDate: string;
+  status: "ACTIVE" | "UPCOMING" | "EXPIRED";
+  [key: string]: any;
+}
 
 
 
@@ -83,18 +93,25 @@ export default function TenantsPage() {
       console.log('Tenants with updated rental statuses:', tenantsWithUpdatedStatuses);
       
       // Convert API tenants to the format expected by the UI
-      const convertedTenants: Tenant[] = tenantsWithUpdatedStatuses.map((apiTenant) => {
-        // Ensure rentals array exists before calculating status
+      const convertedTenants: Tenant[] = tenantsWithUpdatedStatuses.map((apiTenant: TenantWithRentals) => {
+        // Calculate tenant status using the updated utility function
+        // This now uses API rental statuses directly (ACTIVE/UPCOMING/EXPIRED)
+        // and only calculates AVAILABLE on frontend when no rentals exist
         const tenantWithRentals = {
           ...apiTenant,
           rentals: apiTenant.rentals || []
         };
-        // Use unified status calculation with updated rental statuses
-        const status = calculateTenantStatus(tenantWithRentals);
+        const status = calculateTenantStatus({
+          ...tenantWithRentals,
+          rentals: tenantWithRentals.rentals.map((rental: Rental) => ({
+            ...rental,
+            status: rental.status as "ACTIVE" | "UPCOMING" | "EXPIRED"
+          }))
+        });
         
         // Handle multiple rentals - get the most recent active one or the first one
         const rentals = apiTenant.rentals || [];
-        const activeRental = rentals.find(rental => rental.status === "ACTIVE") || rentals[0];
+        const activeRental = rentals.find((rental: Rental) => rental.status === "ACTIVE") || rentals[0];
 
         const convertedTenant = {
           id: apiTenant.id,
@@ -213,14 +230,14 @@ export default function TenantsPage() {
     const now = new Date();
     const start = new Date(startDate);
     const end = new Date(endDate);
-    let status: "Upcoming" | "Active" | "Inactive" = "Inactive";
+    let status: "Upcoming" | "Active" | "Expired" = "Expired";
 
     if (now < start) {
       status = "Upcoming";
     } else if (now >= start && now <= end) {
       status = "Active";
     } else {
-      status = "Inactive";
+      status = "Expired";
     }
 
     setTenants((prev: Tenant[]) =>
@@ -582,7 +599,7 @@ return tenant as Tenant;
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="text-2xl font-bold text-red-600">
-              {(searchTerm || statusFilter !== "All" ? filteredTenants : tenants).filter((t) => t.status === "Inactive").length}
+              {(searchTerm || statusFilter !== "All" ? filteredTenants : tenants).filter((t) => t.status === "Expired").length}
             </div>
             <div className="text-sm text-gray-600">Expired Leases</div>
           </div>
