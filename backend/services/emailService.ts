@@ -1,6 +1,21 @@
 import nodemailer from 'nodemailer';
 import { getTestMessageUrl } from 'nodemailer';
 
+// Custom Error Classes for Professional Error Handling
+export class EmailConfigurationError extends Error {
+  constructor(service: string, missingVars: string[]) {
+    super(`Email service configuration incomplete for ${service}. Missing required environment variables: ${missingVars.join(', ')}`);
+    this.name = 'EmailConfigurationError';
+  }
+}
+
+export class EmailServiceError extends Error {
+  constructor(service: string, operation: string, originalError?: Error) {
+    super(`Email service (${service}) failed during ${operation}${originalError ? ': ' + originalError.message : ''}`);
+    this.name = 'EmailServiceError';
+  }
+}
+
 export interface EmailOptions {
   to: string | string[];
   subject: string;
@@ -54,8 +69,12 @@ class EmailService {
     const etherealUser = process.env.ETHEREAL_USER;
     const etherealPass = process.env.ETHEREAL_PASS;
 
-    if (!etherealUser || !etherealPass) {
-      throw new Error('Missing Ethereal configuration. Please check ETHEREAL_USER and ETHEREAL_PASS environment variables.');
+    const missingVars = [];
+    if (!etherealUser) missingVars.push('ETHEREAL_USER');
+    if (!etherealPass) missingVars.push('ETHEREAL_PASS');
+    
+    if (missingVars.length > 0) {
+      throw new EmailConfigurationError('Ethereal', missingVars);
     }
     
     this.transporter = nodemailer.createTransport({
@@ -79,8 +98,13 @@ class EmailService {
     const mailgunUser = process.env.MAILGUN_SMTP_LOGIN;
     const mailgunPass = process.env.MAILGUN_SMTP_PASSWORD;
 
-    if (!mailgunHost || !mailgunUser || !mailgunPass) {
-      throw new Error('Missing Mailgun configuration. Please check MAILGUN_SMTP_* environment variables.');
+    const missingVars = [];
+    if (!mailgunHost) missingVars.push('MAILGUN_SMTP_SERVER');
+    if (!mailgunUser) missingVars.push('MAILGUN_SMTP_LOGIN');
+    if (!mailgunPass) missingVars.push('MAILGUN_SMTP_PASSWORD');
+    
+    if (missingVars.length > 0) {
+      throw new EmailConfigurationError('Mailgun', missingVars);
     }
 
     this.transporter = nodemailer.createTransport({
@@ -94,10 +118,14 @@ class EmailService {
     });
 
     // Verify connection
-    if (this.transporter) {
-      await this.transporter.verify();
+    try {
+      if (this.transporter) {
+        await this.transporter.verify();
+      }
+      console.log('📧 Email server started (Production mode - Mailgun)');
+    } catch (error) {
+      throw new EmailServiceError('Mailgun', 'connection verification', error as Error);
     }
-    console.log('📧 Email server started (Production mode - Mailgun)');
   }
 
   private async initializeGmail(): Promise<void> {
@@ -106,8 +134,12 @@ class EmailService {
     const gmailUser = process.env.GMAIL_USER;
     const gmailPass = process.env.GMAIL_PASS;
 
-    if (!gmailUser || !gmailPass) {
-      throw new Error('Missing Gmail configuration. Please check GMAIL_USER and GMAIL_PASS environment variables.');
+    const missingVars = [];
+    if (!gmailUser) missingVars.push('GMAIL_USER');
+    if (!gmailPass) missingVars.push('GMAIL_PASS');
+    
+    if (missingVars.length > 0) {
+      throw new EmailConfigurationError('Gmail', missingVars);
     }
 
     this.transporter = nodemailer.createTransport({
@@ -119,10 +151,14 @@ class EmailService {
     });
 
     // Verify connection
-    if (this.transporter) {
-      await this.transporter.verify();
+    try {
+      if (this.transporter) {
+        await this.transporter.verify();
+      }
+      console.log('📧 Email server started (Gmail)');
+    } catch (error) {
+      throw new EmailServiceError('Gmail', 'connection verification', error as Error);
     }
-    console.log('📧 Email server started (Gmail)');
   }
 
   async sendEmail(options: EmailOptions): Promise<EmailResult> {
