@@ -17,20 +17,28 @@ export interface EmailResult {
 
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
-  private isEthereal: boolean;
+  private emailService: string;
 
   constructor() {
-    this.isEthereal = process.env.EMAIL_SERVICE === 'ethereal';
+    this.emailService = process.env.EMAIL_SERVICE || 'ethereal';
   }
 
   async initialize(): Promise<void> {
     if (this.transporter) return;
 
     try {
-      if (this.isEthereal) {
-        await this.initializeEthereal();
-      } else {
-        await this.initializeMailgun();
+      switch (this.emailService.toLowerCase()) {
+        case 'ethereal':
+          await this.initializeEthereal();
+          break;
+        case 'mailgun':
+          await this.initializeMailgun();
+          break;
+        case 'gmail':
+          await this.initializeGmail();
+          break;
+        default:
+          throw new Error(`Unsupported email service: ${this.emailService}. Supported services: ethereal, mailgun, gmail`);
       }
     } catch (error) {
       console.error('Failed to initialize email service:', error);
@@ -92,6 +100,31 @@ class EmailService {
     console.log('📧 Email server started (Production mode - Mailgun)');
   }
 
+  private async initializeGmail(): Promise<void> {
+    // Initializing Gmail SMTP
+    
+    const gmailUser = process.env.GMAIL_USER;
+    const gmailPass = process.env.GMAIL_PASS;
+
+    if (!gmailUser || !gmailPass) {
+      throw new Error('Missing Gmail configuration. Please check GMAIL_USER and GMAIL_PASS environment variables.');
+    }
+
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailPass, // Use App Password, not regular password
+      },
+    });
+
+    // Verify connection
+    if (this.transporter) {
+      await this.transporter.verify();
+    }
+    console.log('📧 Email server started (Gmail)');
+  }
+
   async sendEmail(options: EmailOptions): Promise<EmailResult> {
     try {
       await this.initialize();
@@ -100,9 +133,20 @@ class EmailService {
         throw new Error('Email transporter not initialized');
       }
 
-      const fromEmail = this.isEthereal 
-        ? process.env.ETHEREAL_FROM || 'noreply@cornven.test' 
-        : process.env.MAILGUN_FROM || 'noreply@cornven.com';
+      let fromEmail: string;
+      switch (this.emailService.toLowerCase()) {
+        case 'ethereal':
+          fromEmail = process.env.ETHEREAL_FROM || 'noreply@cornven.test';
+          break;
+        case 'mailgun':
+          fromEmail = process.env.MAILGUN_FROM || 'noreply@cornven.com';
+          break;
+        case 'gmail':
+          fromEmail = process.env.GMAIL_FROM || process.env.GMAIL_USER || 'noreply@gmail.com';
+          break;
+        default:
+          fromEmail = 'noreply@cornven.com';
+      }
 
       const mailOptions = {
         from: fromEmail,
@@ -119,15 +163,15 @@ class EmailService {
         messageId: info.messageId,
       };
 
-      if (this.isEthereal) {
+      if (this.emailService === 'ethereal') {
         const testUrl = getTestMessageUrl(info);
         result.testUrl = testUrl || undefined;
-        console.log('📧 Email sent successfully (Development)');
+        console.log('📧 Email sent successfully (Ethereal - Development)');
         if (testUrl) {
           console.log('🔗 Preview link:', testUrl);
         }
       } else {
-        console.log('📧 Email sent successfully (Production)');
+        console.log(`📧 Email sent successfully (${this.emailService})`);
       }
 
       return result;
@@ -148,7 +192,7 @@ class EmailService {
       results.push(result);
       
       // Add small delay between emails to avoid rate limiting
-      if (!this.isEthereal) {
+      if (this.emailService !== 'ethereal') {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
@@ -164,10 +208,13 @@ class EmailService {
   }
 
   getServiceInfo(): { service: string; mode: string } {
-    return {
-      service: this.isEthereal ? 'Ethereal' : 'Mailgun',
-      mode: this.isEthereal ? 'Development' : 'Production',
+    const serviceMap: { [key: string]: { service: string; mode: string } } = {
+      ethereal: { service: 'Ethereal', mode: 'Development' },
+      mailgun: { service: 'Mailgun', mode: 'Production' },
+      gmail: { service: 'Gmail', mode: 'Production' },
     };
+    
+    return serviceMap[this.emailService.toLowerCase()] || { service: 'Unknown', mode: 'Unknown' };
   }
 }
 
