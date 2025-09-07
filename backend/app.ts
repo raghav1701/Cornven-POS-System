@@ -14,6 +14,7 @@ import variantsRouter from "./routes/variants";
 // import { stockMonitorService } from "./services/stockMonitorService";
 // import { emailService } from "./services/emailService";
 import posRouter from "./routes/pos";
+import { emailService } from "./services/emailService";
 
 const app = express();
 
@@ -47,10 +48,14 @@ app.use("/admin", adminBillingRouter);
 app.use("/variants", variantsRouter);
 app.use("/pos", posRouter);
 
-// ─── Email/Stock services intentionally NOT started here ──────────────────────────
-// (keep these commented to avoid Vercel build/runtime issues)
-//
-// try { await emailService.initialize(); } catch (e) { console.error(e); }
-// try { await stockMonitorService.start(); } catch (e) { console.error(e); }
+// Initialize email service for stock alerts
+(async () => {
+  try {
+    await emailService.initialize();
+    console.log("✅ Email service initialized successfully");
+  } catch (e) {
+    console.error("❌ Email service initialization failed:", e);
+  }
+})();
 
 export default app;
