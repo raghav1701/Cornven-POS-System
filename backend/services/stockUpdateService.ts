@@ -1,24 +1,24 @@
-import { PrismaClient } from '@prisma/client';
-import { emailService, EmailOptions } from './emailService';
-import { EmailTemplates } from '../templates/emailTemplates';
+// stockUpdateService.ts
+import type { PrismaClient } from "@prisma/client";
+import prisma from "../prisma/prisma";
+import { emailService, type EmailOptions } from "./emailService";
+import { EmailTemplates } from "../templates/emailTemplates";
 
 interface StockUpdateData {
   variantId: string;
   newStock: number;
-  reason?: 'sale' | 'manual_update' | 'return' | 'adjustment';
+  reason?: "sale" | "manual_update" | "return" | "adjustment";
 }
 
 export class StockUpdateService {
   private prisma: PrismaClient;
   private emailService = emailService;
 
-  constructor() {
-    this.prisma = new PrismaClient();
+  // ← Inject prisma (defaults to the shared singleton)
+  constructor(prismaClient: PrismaClient = prisma) {
+    this.prisma = prismaClient;
   }
 
-  /**
-   * Update stock and check for low stock alerts
-   */
   async updateStock(data: StockUpdateData): Promise<{
     success: boolean;
     variant?: any;
@@ -26,59 +26,44 @@ export class StockUpdateService {
     error?: string;
   }> {
     try {
-      // Get variant with product and tenant info
       const variant = await this.prisma.productVariant.findUnique({
         where: { id: data.variantId },
-        include: {
-          product: {
-            include: {
-              tenant: true
-            }
-          }
-        }
+        include: { product: { include: { tenant: true } } },
       });
 
       if (!variant) {
-        return { success: false, error: 'Variant not found' };
+        return { success: false, error: "Variant not found" };
       }
 
-      // Create a variant object with the NEW stock value for alert checking
-      const variantWithNewStock = {
-        ...variant,
-        stock: data.newStock
-      };
+      const variantWithNewStock = { ...variant, stock: data.newStock };
+      const alertSent = await this.checkAndSendAlert(
+        variantWithNewStock,
+        data.reason
+      );
 
-      // Check if NEW stock is below threshold
-      const alertSent = await this.checkAndSendAlert(variantWithNewStock, data.reason);
-
-      return {
-        success: true,
-        variant: variantWithNewStock,
-        alertSent
-      };
+      return { success: true, variant: variantWithNewStock, alertSent };
     } catch (error) {
-      console.error('Stock update service error:', error);
+      console.error("Stock update service error:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
-  /**
-   * Check if variant needs alert and send email
-   */
-  private async checkAndSendAlert(variant: any, reason?: string): Promise<boolean> {
+  private async checkAndSendAlert(
+    variant: any,
+    _reason?: string
+  ): Promise<boolean> {
     try {
-      const isLowStock = variant.stock <= variant.lowStockThreshold && variant.stock > 0;
+      const isLowStock =
+        variant.stock <= variant.lowStockThreshold && variant.stock > 0;
       const isOutOfStock = variant.stock === 0;
 
-      if (!isLowStock && !isOutOfStock) {
-        return false;
-      }
+      if (!isLowStock && !isOutOfStock) return false;
 
-      const alertType = isOutOfStock ? 'out_of_stock' : 'low_stock';
-      
+      const alertType = isOutOfStock ? "out_of_stock" : "low_stock";
+
       await this.sendStockAlert({
         id: variant.id,
         productName: variant.product.name,
@@ -87,85 +72,60 @@ export class StockUpdateService {
         threshold: variant.lowStockThreshold,
         barcode: variant.barcode,
         tenantName: variant.product.tenant.businessName,
-        alertType
+        alertType,
       });
 
       return true;
     } catch (error) {
-      console.error('Alert check failed:', error);
+      console.error("Alert check failed:", error);
       return false;
     }
   }
 
-  /**
-   * Send stock alert email
-   */
   private async sendStockAlert(alert: any): Promise<void> {
     try {
-      if (!this.emailService) {
-        return;
-      }
+      if (!this.emailService) return;
 
-      // Get the tenant's email address from the database
       const tenant = await this.prisma.tenant.findFirst({
         where: { businessName: alert.tenantName },
-        include: {
-          user: true
-        }
+        include: { user: true },
       });
+      if (!tenant?.user) return;
 
-      if (!tenant || !tenant.user) {
-        return;
-      }
-
-      const subject = alert.alertType === 'out_of_stock'
-        ? `🚨 OUT OF STOCK: ${alert.productName}`
-        : `⚠️ LOW STOCK ALERT: ${alert.productName}`;
-
-      const emailTemplate = alert.alertType === 'out_of_stock'
-        ? EmailTemplates.outOfStockAlert({
-            productName: alert.productName,
-            variantName: alert.variantName,
-            barcode: alert.barcode,
-            tenantName: alert.tenantName
-          })
-        : EmailTemplates.lowStockAlert({
-            productName: alert.productName,
-            variantName: alert.variantName,
-            currentStock: alert.currentStock,
-            threshold: alert.threshold,
-            barcode: alert.barcode,
-            tenantName: alert.tenantName
-          });
+      const tmpl =
+        alert.alertType === "out_of_stock"
+          ? EmailTemplates.outOfStockAlert({
+              productName: alert.productName,
+              variantName: alert.variantName,
+              barcode: alert.barcode,
+              tenantName: alert.tenantName,
+            })
+          : EmailTemplates.lowStockAlert({
+              productName: alert.productName,
+              variantName: alert.variantName,
+              currentStock: alert.currentStock,
+              threshold: alert.threshold,
+              barcode: alert.barcode,
+              tenantName: alert.tenantName,
+            });
 
       const emailOptions: EmailOptions = {
-        to: tenant.user.email, // Send to the actual tenant's email
-        subject: emailTemplate.subject,
-        html: emailTemplate.html,
-        text: emailTemplate.text
+        to: tenant.user.email,
+        subject: tmpl.subject,
+        html: tmpl.html,
+        text: tmpl.text,
       };
 
-      const emailResult = await this.emailService.sendEmail(emailOptions);
-
-      // Email sent successfully
+      await this.emailService.sendEmail(emailOptions);
     } catch (error) {
-      console.error('Failed to send stock alert:', error);
+      console.error("Failed to send stock alert:", error);
       throw error;
     }
   }
 
-  /**
-   * Strip HTML tags from content to create plain text
-   */
-  private stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-  }
-
-  /**
-   * Cleanup resources
-   */
+  // IMPORTANT (serverless): don't disconnect the shared client
   async cleanup(): Promise<void> {
-    await this.prisma.$disconnect();
+    // Intentionally empty to avoid tearing down the shared prisma client
   }
 }
 

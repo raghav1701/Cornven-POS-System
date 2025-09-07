@@ -1,6 +1,8 @@
-import { PrismaClient } from '@prisma/client';
-import { emailService } from './emailService';
-import { EmailTemplates } from '../templates/emailTemplates';
+// stockMonitorService.ts
+import type { PrismaClient } from "@prisma/client";
+import prisma from "../prisma/prisma";
+import { emailService } from "./emailService";
+import { EmailTemplates } from "../templates/emailTemplates";
 
 interface StockAlert {
   id: string;
@@ -10,7 +12,7 @@ interface StockAlert {
   threshold: number;
   barcode: string;
   tenantName: string;
-  alertType: 'low_stock' | 'out_of_stock';
+  alertType: "low_stock" | "out_of_stock";
 }
 
 interface MonitoringStats {
@@ -24,61 +26,46 @@ interface MonitoringStats {
 export class StockMonitorService {
   private prisma: PrismaClient;
   private emailService = emailService;
-  private isRunning: boolean = false;
+  private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
   private lastRunTime: Date | null = null;
   private monitoringIntervalHours: number;
 
-  constructor() {
-    this.prisma = new PrismaClient();
-    // Get monitoring interval from environment variable, default to 24 hours
-    const envInterval = parseInt(process.env.STOCK_MONITOR_INTERVAL_HOURS || '24', 10);
-    this.monitoringIntervalHours = isNaN(envInterval) || envInterval <= 0 ? 24 : envInterval;
+  // ← Inject prisma (defaults to the shared singleton)
+  constructor(prismaClient: PrismaClient = prisma) {
+    this.prisma = prismaClient;
+    const envInterval = parseInt(
+      process.env.STOCK_MONITOR_INTERVAL_HOURS || "24",
+      10
+    );
+    this.monitoringIntervalHours =
+      isNaN(envInterval) || envInterval <= 0 ? 24 : envInterval;
   }
 
-  /**
-   * Start the stock monitoring service with 24-hour intervals
-   */
   async start(): Promise<void> {
-    if (this.isRunning) {
-      return;
-    }
-    
-    // Initialize email service
+    if (this.isRunning) return;
+
     await this.emailService.initialize();
-    
-    // Run initial check
     await this.performStockCheck();
-    
-    // Schedule checks based on environment variable (default 24 hours)
+
     this.intervalId = setInterval(async () => {
       await this.performStockCheck();
     }, this.monitoringIntervalHours * 60 * 60 * 1000);
-    
+
     this.isRunning = true;
   }
 
-  /**
-   * Stop the stock monitoring service
-   */
   stop(): void {
-    if (!this.isRunning) {
-      return;
-    }
-
+    if (!this.isRunning) return;
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-
     this.isRunning = false;
   }
 
-  /**
-   * Perform a manual stock check (can be called independently)
-   */
   async performStockCheck(): Promise<MonitoringStats> {
-    console.log('🔍 Checking low stock and out-of-stock products...');
+    console.log("🔍 Checking low stock and out-of-stock products...");
     const startTime = new Date();
 
     const stats: MonitoringStats = {
@@ -86,33 +73,27 @@ export class StockMonitorService {
       lowStockAlerts: 0,
       outOfStockAlerts: 0,
       emailsSent: 0,
-      errors: 0
+      errors: 0,
     };
 
     try {
-      // Get all product variants with their products and tenants
       const variants = await this.prisma.productVariant.findMany({
         include: {
           product: {
-            include: {
-              tenant: true
-            }
-          }
+            include: { tenant: true },
+          },
         },
         where: {
           product: {
-            tenantId: {
-              not: undefined
-            }
-          }
-        }
+            tenantId: { not: undefined },
+          },
+        },
       });
 
       stats.totalVariants = variants.length;
 
       const alerts: StockAlert[] = [];
 
-      // Check each variant for stock issues
       for (const variant of variants) {
         if (!variant.product.tenant) continue;
 
@@ -124,167 +105,140 @@ export class StockMonitorService {
           threshold: variant.lowStockThreshold,
           barcode: variant.barcode,
           tenantName: variant.product.tenant.businessName,
-          alertType: variant.stock === 0 ? 'out_of_stock' : 'low_stock'
+          alertType: variant.stock === 0 ? "out_of_stock" : "low_stock",
         };
 
-        // Check for out of stock
         if (variant.stock === 0) {
           alerts.push(alert);
           stats.outOfStockAlerts++;
-        }
-        // Check for low stock (but not zero)
-        else if (variant.stock <= variant.lowStockThreshold && variant.stock > 0) {
+        } else if (variant.stock <= variant.lowStockThreshold) {
           alerts.push(alert);
           stats.lowStockAlerts++;
         }
       }
 
-      // Send email alerts
       if (alerts.length > 0) {
-        console.log(`📦 Found ${stats.lowStockAlerts} low stock items and ${stats.outOfStockAlerts} out-of-stock items`);
+        console.log(
+          `📦 Found ${stats.lowStockAlerts} low stock and ${stats.outOfStockAlerts} out-of-stock items`
+        );
         await this.sendStockAlerts(alerts, stats);
       } else {
-        console.log('✅ All products have adequate stock levels');
+        console.log("✅ All products have adequate stock levels");
       }
 
-      // Update last run time
       this.lastRunTime = startTime;
-
-      // Update last run time
-      this.lastRunTime = startTime;
-
     } catch (error) {
-      console.error('❌ Error during stock check:', error);
+      console.error("❌ Error during stock check:", error);
       stats.errors++;
     }
 
     return stats;
   }
 
-  /**
-   * Send stock alert emails
-   */
-  private async sendStockAlerts(alerts: StockAlert[], stats: MonitoringStats): Promise<void> {
-
-    // Group alerts by tenant for batch sending
+  private async sendStockAlerts(
+    alerts: StockAlert[],
+    stats: MonitoringStats
+  ): Promise<void> {
     const alertsByTenant = new Map<string, StockAlert[]>();
-    
+
     for (const alert of alerts) {
-      if (!alertsByTenant.has(alert.tenantName)) {
+      if (!alertsByTenant.has(alert.tenantName))
         alertsByTenant.set(alert.tenantName, []);
-      }
       alertsByTenant.get(alert.tenantName)!.push(alert);
     }
 
-    // Send emails for each tenant
     for (const [tenantName, tenantAlerts] of alertsByTenant) {
       try {
-        // Get tenant admin emails (using the tenant's user relationship)
         const tenant = await this.prisma.tenant.findFirst({
           where: { businessName: tenantName },
-          include: {
-            user: true
-          }
+          include: { user: true },
         });
+        if (!tenant?.user) continue;
 
-        if (!tenant || !tenant.user) {
-          continue;
-        }
-
-        // Send individual emails for each alert
         for (const alert of tenantAlerts) {
-          const emailData = {
+          const base = {
             productName: alert.productName,
             variantName: alert.variantName,
             currentStock: alert.currentStock,
             threshold: alert.threshold,
             barcode: alert.barcode,
-            tenantName: alert.tenantName
+            tenantName: alert.tenantName,
           };
 
-          let template;
-          if (alert.alertType === 'out_of_stock') {
-            template = EmailTemplates.outOfStockAlert({
-              ...emailData,
-              lastSaleDate: undefined // You can add this if you track last sale dates
-            });
-          } else {
-            template = EmailTemplates.lowStockAlert(emailData);
-          }
+          const template =
+            alert.alertType === "out_of_stock"
+              ? EmailTemplates.outOfStockAlert({
+                  ...base,
+                  lastSaleDate: undefined,
+                })
+              : EmailTemplates.lowStockAlert(base);
 
-          // Send to the tenant's user
           try {
-            console.log(`📧 Sending ${alert.alertType.replace('_', ' ')} alert to ${tenant.user.email}`);
+            console.log(
+              `📧 Sending ${alert.alertType.replace("_", " ")} alert to ${
+                tenant.user.email
+              }`
+            );
             await this.emailService.sendEmail({
               to: tenant.user.email,
               subject: template.subject,
               html: template.html,
-              text: template.text
+              text: template.text,
             });
-            
             stats.emailsSent++;
           } catch (emailError) {
-            console.error(`❌ Failed to send email to ${tenant.user.email}:`, emailError);
+            console.error(
+              `❌ Failed to send email to ${tenant.user.email}:`,
+              emailError
+            );
             stats.errors++;
           }
         }
-
       } catch (error) {
-        console.error(`❌ Error processing alerts for tenant ${tenantName}:`, error);
+        console.error(
+          `❌ Error processing alerts for tenant ${tenantName}:`,
+          error
+        );
         stats.errors++;
       }
     }
   }
 
-  /**
-   * Get service status and statistics
-   */
-  getStatus(): {
-    isRunning: boolean;
-    lastRunTime: Date | null;
-    nextRunTime: Date | null;
-    monitoringIntervalHours: number;
-  } {
-    const nextRunTime = this.lastRunTime 
-      ? new Date(this.lastRunTime.getTime() + this.monitoringIntervalHours * 60 * 60 * 1000)
+  getStatus() {
+    const nextRunTime = this.lastRunTime
+      ? new Date(
+          this.lastRunTime.getTime() +
+            this.monitoringIntervalHours * 60 * 60 * 1000
+        )
       : null;
 
     return {
       isRunning: this.isRunning,
       lastRunTime: this.lastRunTime,
       nextRunTime,
-      monitoringIntervalHours: this.monitoringIntervalHours
+      monitoringIntervalHours: this.monitoringIntervalHours,
     };
   }
 
-  /**
-   * Force an immediate stock check (for testing or manual triggers)
-   */
   async forceCheck(): Promise<MonitoringStats> {
-    return await this.performStockCheck();
+    return this.performStockCheck();
   }
 
-  /**
-   * Update the check interval (in hours)
-   */
   updateInterval(hours: number): void {
-    this.monitoringIntervalHours = hours;
-    
+    this.monitoringIntervalHours =
+      hours > 0 ? hours : this.monitoringIntervalHours;
     if (this.isRunning) {
       this.stop();
-      // Restart with new interval
-      this.start();
+      // Fire and forget; caller can await if desired
+      void this.start();
     }
   }
 
-  /**
-   * Cleanup resources
-   */
+  // IMPORTANT (serverless): don't disconnect the shared client
   async cleanup(): Promise<void> {
     this.stop();
-    await this.prisma.$disconnect();
+    // no prisma.$disconnect() here (singleton reused across invocations)
   }
 }
 
-// Export singleton instance
 export const stockMonitorService = new StockMonitorService();
