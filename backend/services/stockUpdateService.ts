@@ -51,6 +51,45 @@ export class StockUpdateService {
     }
   }
 
+  /**
+   * Public helper: given a variant id, load fresh data and
+   * send a low/out-of-stock alert if thresholds are crossed.
+   * Returns true if an alert was sent.
+   */
+  public async triggerAlertIfNeeded(variantId: string): Promise<boolean> {
+    try {
+      const v = await this.prisma.productVariant.findUnique({
+        where: { id: variantId },
+        include: { product: { include: { tenant: true } } },
+      });
+      if (!v || !v.product?.tenant) return false;
+
+      const isLowStock = v.stock <= v.lowStockThreshold && v.stock > 0;
+      const isOutOfStock = v.stock === 0;
+      if (!isLowStock && !isOutOfStock) return false;
+
+      const alertType = isOutOfStock ? "out_of_stock" : "low_stock";
+
+      await this.sendStockAlert({
+        id: v.id,
+        productName: v.product.name,
+        variantName: `${v.color ?? ""}${v.color && v.size ? " - " : ""}${
+          v.size ?? ""
+        }`,
+        currentStock: v.stock,
+        threshold: v.lowStockThreshold,
+        barcode: v.barcode,
+        tenantName: v.product.tenant.businessName,
+        alertType,
+      });
+
+      return true;
+    } catch (err) {
+      console.error("triggerAlertIfNeeded error:", err);
+      return false;
+    }
+  }
+
   private async checkAndSendAlert(
     variant: any,
     _reason?: string

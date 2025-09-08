@@ -22,6 +22,7 @@ model User {
   allocations   Rental[]       @relation("AllocatedBy")
   inventoryLogs InventoryLog[]
   receivedPayments Payment[] 
+  salesProcessed    Sale[]
 }
 
 model Tenant {
@@ -37,6 +38,7 @@ model Tenant {
   user     User      @relation(fields: [userId], references: [id])
   rentals  Rental[]
   products Product[]
+  sales    Sale[]
 }
 
 model Cube {
@@ -83,6 +85,7 @@ model Product {
 
   logs     InventoryLog[]
   variants ProductVariant[]
+  saleItems  SaleItem[]
 }
 
 enum BarcodeType {
@@ -99,7 +102,8 @@ enum InventoryChangeType {
   VARIANT_CREATE
   VARIANT_STOCK_UPDATE
   VARIANT_PRICE_UPDATE
-  VARIANT_STATUS_UPDATE   
+  VARIANT_STATUS_UPDATE 
+  SALE  
 }
 
 model ProductVariant {
@@ -119,6 +123,8 @@ model ProductVariant {
   updatedAt  DateTime @updatedAt
 
   @@unique([productId, color, size])
+
+  saleItems  SaleItem[]
 }
 
 
@@ -187,4 +193,92 @@ enum RentalStatus {
   ACTIVE
   UPCOMING
   EXPIRED
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  VOIDED    
+}
+
+enum SalePaymentStatus {
+  AUTHORIZED
+  CAPTURED
+  FAILED
+}
+
+model Sale {
+  id              String        @id @default(uuid())
+  tenantId        String
+  cashierUserId   String?       // who processed the sale
+  currency        String        @default("AUD")
+
+  subtotalCents   Int
+  discountCents   Int           @default(0)
+  taxCents        Int           @default(0)
+  totalCents      Int
+
+  status          SaleStatus    @default(COMPLETED)
+  note            String?
+  idempotencyKey  String?       @unique
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // relations
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  cashier         User?         @relation(fields: [cashierUserId], references: [id])
+  items           SaleItem[]
+  payments        SalePayment[]
+
+  @@index([tenantId, createdAt])
+}
+
+model SaleItem {
+  id               String          @id @default(uuid())
+  saleId           String
+  productId        String
+  variantId        String
+  quantity         Int
+
+  // Store prices at time of sale (AUD cents)
+  unitPriceCents   Int
+  discountCents    Int             @default(0)
+  taxCents         Int             @default(0)
+  lineTotalCents   Int
+
+  // Audit copies (denormalized for fast receipts)
+  barcode          String?
+  productName      String
+  variantName      String
+
+  createdAt        DateTime        @default(now())
+
+  sale             Sale            @relation(fields: [saleId], references: [id])
+  product          Product         @relation(fields: [productId], references: [id])
+  variant          ProductVariant  @relation(fields: [variantId], references: [id])
+
+  @@index([saleId])
+  @@index([variantId])
+}
+
+model SalePayment {
+  id             String            @id @default(uuid())
+  saleId         String
+  method         PaymentMethod
+  status         SalePaymentStatus
+  amountCents    Int
+
+  // gateway references (for card/Stripe later; can be null for cash)
+  provider       String?
+  providerIntent String?
+  providerCharge String?
+  failureReason  String?
+
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  sale           Sale              @relation(fields: [saleId], references: [id])
+
+  @@index([saleId])
 }
