@@ -1,11 +1,11 @@
-import { PrismaClient } from '@prisma/client';
-import { emailService, EmailOptions } from './emailService';
-import { EmailTemplates } from '../templates/emailTemplates';
+import { PrismaClient } from "@prisma/client";
+import { emailService, EmailOptions } from "./emailService";
+import { EmailTemplates } from "../templates/emailTemplates";
 
 interface StockUpdateData {
   variantId: string;
   newStock: number;
-  reason?: 'sale' | 'manual_update' | 'return' | 'adjustment';
+  reason?: "sale" | "manual_update" | "return" | "adjustment";
 }
 
 export class StockUpdateService {
@@ -14,6 +14,45 @@ export class StockUpdateService {
 
   constructor() {
     this.prisma = new PrismaClient();
+  }
+
+  /**
+   * Public helper: given a variant id, load fresh data and
+   * send a low/out-of-stock alert if thresholds are crossed.
+   * Returns true if an alert was sent.
+   */
+  public async triggerAlertIfNeeded(variantId: string): Promise<boolean> {
+    try {
+      const v = await this.prisma.productVariant.findUnique({
+        where: { id: variantId },
+        include: { product: { include: { tenant: true } } },
+      });
+      if (!v || !v.product?.tenant) return false;
+
+      const isLowStock = v.stock <= v.lowStockThreshold && v.stock > 0;
+      const isOutOfStock = v.stock === 0;
+      if (!isLowStock && !isOutOfStock) return false;
+
+      const alertType = isOutOfStock ? "out_of_stock" : "low_stock";
+
+      await this.sendStockAlert({
+        id: v.id,
+        productName: v.product.name,
+        variantName: `${v.color ?? ""}${v.color && v.size ? " - " : ""}${
+          v.size ?? ""
+        }`,
+        currentStock: v.stock,
+        threshold: v.lowStockThreshold,
+        barcode: v.barcode,
+        tenantName: v.product.tenant.businessName,
+        alertType,
+      });
+
+      return true;
+    } catch (err) {
+      console.error("triggerAlertIfNeeded error:", err);
+      return false;
+    }
   }
 
   /**
@@ -32,35 +71,38 @@ export class StockUpdateService {
         include: {
           product: {
             include: {
-              tenant: true
-            }
-          }
-        }
+              tenant: true,
+            },
+          },
+        },
       });
 
       if (!variant) {
-        return { success: false, error: 'Variant not found' };
+        return { success: false, error: "Variant not found" };
       }
 
       // Create a variant object with the NEW stock value for alert checking
       const variantWithNewStock = {
         ...variant,
-        stock: data.newStock
+        stock: data.newStock,
       };
 
       // Check if NEW stock is below threshold
-      const alertSent = await this.checkAndSendAlert(variantWithNewStock, data.reason);
+      const alertSent = await this.checkAndSendAlert(
+        variantWithNewStock,
+        data.reason
+      );
 
       return {
         success: true,
         variant: variantWithNewStock,
-        alertSent
+        alertSent,
       };
     } catch (error) {
-      console.error('Stock update service error:', error);
+      console.error("Stock update service error:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -68,17 +110,21 @@ export class StockUpdateService {
   /**
    * Check if variant needs alert and send email
    */
-  private async checkAndSendAlert(variant: any, reason?: string): Promise<boolean> {
+  private async checkAndSendAlert(
+    variant: any,
+    reason?: string
+  ): Promise<boolean> {
     try {
-      const isLowStock = variant.stock <= variant.lowStockThreshold && variant.stock > 0;
+      const isLowStock =
+        variant.stock <= variant.lowStockThreshold && variant.stock > 0;
       const isOutOfStock = variant.stock === 0;
 
       if (!isLowStock && !isOutOfStock) {
         return false;
       }
 
-      const alertType = isOutOfStock ? 'out_of_stock' : 'low_stock';
-      
+      const alertType = isOutOfStock ? "out_of_stock" : "low_stock";
+
       await this.sendStockAlert({
         id: variant.id,
         productName: variant.product.name,
@@ -87,12 +133,12 @@ export class StockUpdateService {
         threshold: variant.lowStockThreshold,
         barcode: variant.barcode,
         tenantName: variant.product.tenant.businessName,
-        alertType
+        alertType,
       });
 
       return true;
     } catch (error) {
-      console.error('Alert check failed:', error);
+      console.error("Alert check failed:", error);
       return false;
     }
   }
@@ -110,46 +156,48 @@ export class StockUpdateService {
       const tenant = await this.prisma.tenant.findFirst({
         where: { businessName: alert.tenantName },
         include: {
-          user: true
-        }
+          user: true,
+        },
       });
 
       if (!tenant || !tenant.user) {
         return;
       }
 
-      const subject = alert.alertType === 'out_of_stock'
-        ? `🚨 OUT OF STOCK: ${alert.productName}`
-        : `⚠️ LOW STOCK ALERT: ${alert.productName}`;
+      const subject =
+        alert.alertType === "out_of_stock"
+          ? `🚨 OUT OF STOCK: ${alert.productName}`
+          : `⚠️ LOW STOCK ALERT: ${alert.productName}`;
 
-      const emailTemplate = alert.alertType === 'out_of_stock'
-        ? EmailTemplates.outOfStockAlert({
-            productName: alert.productName,
-            variantName: alert.variantName,
-            barcode: alert.barcode,
-            tenantName: alert.tenantName
-          })
-        : EmailTemplates.lowStockAlert({
-            productName: alert.productName,
-            variantName: alert.variantName,
-            currentStock: alert.currentStock,
-            threshold: alert.threshold,
-            barcode: alert.barcode,
-            tenantName: alert.tenantName
-          });
+      const emailTemplate =
+        alert.alertType === "out_of_stock"
+          ? EmailTemplates.outOfStockAlert({
+              productName: alert.productName,
+              variantName: alert.variantName,
+              barcode: alert.barcode,
+              tenantName: alert.tenantName,
+            })
+          : EmailTemplates.lowStockAlert({
+              productName: alert.productName,
+              variantName: alert.variantName,
+              currentStock: alert.currentStock,
+              threshold: alert.threshold,
+              barcode: alert.barcode,
+              tenantName: alert.tenantName,
+            });
 
       const emailOptions: EmailOptions = {
         to: tenant.user.email, // Send to the actual tenant's email
         subject: emailTemplate.subject,
         html: emailTemplate.html,
-        text: emailTemplate.text
+        text: emailTemplate.text,
       };
 
       const emailResult = await this.emailService.sendEmail(emailOptions);
 
       // Email sent successfully
     } catch (error) {
-      console.error('Failed to send stock alert:', error);
+      console.error("Failed to send stock alert:", error);
       throw error;
     }
   }
@@ -158,7 +206,10 @@ export class StockUpdateService {
    * Strip HTML tags from content to create plain text
    */
   private stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    return html
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   /**
