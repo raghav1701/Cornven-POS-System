@@ -3,6 +3,7 @@ import { Role, PaymentMethod } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 import prisma from "../prisma/prisma";
 import { summarizeRental } from "../utils/billing";
+import { paymentReminderService } from "../services/paymentReminderService";
 
 const router = Router();
 router.use(...requireAuth(Role.ADMIN));
@@ -125,6 +126,40 @@ router.get("/rentals/overdue", async (_req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to compute overdue rentals" });
+  }
+});
+
+/**
+ * POST /admin/payment-reminders/trigger
+ * Manually trigger payment reminder checks for all active rentals
+ * This will check all rentals and send appropriate reminder emails
+ */
+router.post("/payment-reminders/trigger", async (req, res) => {
+  try {
+    console.log("Manual payment reminder trigger initiated by admin");
+    
+    const result = await paymentReminderService.triggerPaymentReminders();
+    
+    res.json({
+       success: true,
+       message: "Payment reminder check completed successfully",
+       stats: {
+         totalRentalsProcessed: result.processed,
+         totalEmailsSent: result.sent,
+         totalSkipped: result.skipped,
+         totalErrors: result.errors,
+         details: result.results
+       },
+       timestamp: new Date().toISOString()
+     });
+  } catch (error) {
+    console.error("Error triggering payment reminders:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to trigger payment reminders",
+      message: error instanceof Error ? error.message : "Unknown error occurred",
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

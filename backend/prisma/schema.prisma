@@ -70,7 +70,8 @@ model Rental {
   tenant      Tenant @relation(fields: [tenantId], references: [id])
   cube        Cube   @relation(fields: [cubeId], references: [id])
   allocatedBy User   @relation("AllocatedBy", fields: [allocatedById], references: [id])
-  payments      Payment[] 
+  payments      Payment[]
+  paymentReminders PaymentReminder[] 
 }
 
 model Product {
@@ -280,4 +281,28 @@ model SalePayment {
   sale           Sale              @relation(fields: [saleId], references: [id])
 
   @@index([saleId])
+}
+
+model PaymentReminder {
+  id           String              @id @default(uuid())
+  rentalId     String
+  reminderType PaymentReminderType
+  dueDate      DateTime            // The due date this reminder is for
+  sentAt       DateTime            @default(now())
+  emailSent    Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+
+  // relations
+  rental       Rental              @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+
+  // Prevent duplicate reminders for same rental + type + due date
+  @@unique([rentalId, reminderType, dueDate])
+  @@index([rentalId])
+  @@index([dueDate])
+}
+
+enum PaymentReminderType {
+  SEVEN_DAY_ADVANCE
+  ONE_DAY_DUE
+  OVERDUE
 }

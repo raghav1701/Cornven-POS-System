@@ -468,4 +468,288 @@ ${data.details ?
     
     return { subject, html, text };
   }
+
+  /**
+   * 7-Day Payment Reminder Template
+   */
+  static paymentReminder7Day(data: {
+    tenantName: string;
+    cubeCode: string;
+    dueDate: string;
+    amountDue: string;
+    dailyRent: string;
+    totalPaid?: string;
+  }): { subject: string; html: string; text: string } {
+    const subject = `💰 Payment Reminder: Rent Due in 7 Days - Cube ${data.cubeCode}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+          .reminder { background: #fff3e0; border: 1px solid #ffcc02; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .details { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+          .amount { color: #1976d2; font-weight: bold; font-size: 18px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>💰 Payment Reminder</h2>
+            <p>Your rental payment is due in 7 days</p>
+          </div>
+          
+          <div class="reminder">
+            <h3>Friendly Reminder</h3>
+            <p>Dear ${data.tenantName},</p>
+            <p>This is a friendly reminder that your rental payment for <strong>Cube ${data.cubeCode}</strong> is due on <strong>${data.dueDate}</strong>.</p>
+          </div>
+          
+          <div class="details">
+            <h4>Payment Details:</h4>
+            <ul>
+              <li><strong>Cube:</strong> ${data.cubeCode}</li>
+              <li><strong>Due Date:</strong> ${data.dueDate}</li>
+              <li><strong>Amount Due:</strong> <span class="amount">$${data.amountDue}</span></li>
+              <li><strong>Daily Rent:</strong> $${data.dailyRent}</li>
+              ${data.totalPaid ? `<li><strong>Total Paid:</strong> $${data.totalPaid}</li>` : ''}
+            </ul>
+          </div>
+          
+          <p><strong>Next Steps:</strong> Please ensure your payment is made by the due date to avoid any late fees or service interruptions.</p>
+          <p>If you have any questions or need assistance with payment, please contact our office.</p>
+          
+          <div class="footer">
+            <p>Thank you for choosing Cornven Storage Solutions.</p>
+            <p>Generated at: ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const text = `
+💰 PAYMENT REMINDER - DUE IN 7 DAYS
+
+Dear ${data.tenantName},
+
+This is a friendly reminder that your rental payment is due in 7 days.
+
+Payment Details:
+- Cube: ${data.cubeCode}
+- Due Date: ${data.dueDate}
+- Amount Due: $${data.amountDue}
+- Daily Rent: $${data.dailyRent}
+- Total Paid: $${data.totalPaid || '0.00'}
+
+Please ensure your payment is made by the due date to avoid any late fees.
+
+Thank you for choosing Cornven Storage Solutions.
+Generated at: ${new Date().toLocaleString()}
+    `.trim();
+    
+    return { subject, html, text };
+  }
+
+  /**
+   * 1-Day Payment Reminder Template
+   */
+  static paymentReminder1Day(data: {
+    tenantName: string;
+    cubeCode: string;
+    dueDate: string;
+    amountDue: string;
+    dailyRent: string;
+    totalPaid?: string;
+  }): { subject: string; html: string; text: string } {
+    const subject = `🚨 URGENT: Payment Due Tomorrow - Cube ${data.cubeCode}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #fff3e0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+          .urgent { background: #ffebee; border: 2px solid #f44336; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .details { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+          .amount { color: #f44336; font-weight: bold; font-size: 20px; }
+          .urgent-text { color: #f44336; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>🚨 URGENT Payment Reminder</h2>
+            <p class="urgent-text">Payment due tomorrow!</p>
+          </div>
+          
+          <div class="urgent">
+            <h3 class="urgent-text">Action Required</h3>
+            <p>Dear ${data.tenantName},</p>
+            <p><strong>URGENT:</strong> Your rental payment for <strong>Cube ${data.cubeCode}</strong> is due <strong>TOMORROW (${data.dueDate})</strong>.</p>
+            <p>Please arrange payment immediately to avoid late fees and potential service interruption.</p>
+          </div>
+          
+          <div class="details">
+            <h4>Payment Details:</h4>
+            <ul>
+              <li><strong>Cube:</strong> ${data.cubeCode}</li>
+              <li><strong>Due Date:</strong> <span class="urgent-text">${data.dueDate}</span></li>
+              <li><strong>Amount Due:</strong> <span class="amount">$${data.amountDue}</span></li>
+              <li><strong>Daily Rent:</strong> $${data.dailyRent}</li>
+              ${data.totalPaid ? `<li><strong>Total Paid:</strong> $${data.totalPaid}</li>` : ''}
+            </ul>
+          </div>
+          
+          <p><strong>IMMEDIATE ACTION REQUIRED:</strong> Please make your payment today to ensure it processes before the due date.</p>
+          <p>Contact our office immediately if you need assistance or have any payment concerns.</p>
+          
+          <div class="footer">
+            <p>Cornven Storage Solutions - Payment Services</p>
+            <p>Generated at: ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const text = `
+🚨 URGENT PAYMENT REMINDER - DUE TOMORROW
+
+Dear ${data.tenantName},
+
+URGENT: Your rental payment for Cube ${data.cubeCode} is due TOMORROW (${data.dueDate}).
+
+Payment Details:
+- Cube: ${data.cubeCode}
+- Due Date: ${data.dueDate}
+- Amount Due: $${data.amountDue}
+- Daily Rent: $${data.dailyRent}
+- Total Paid: $${data.totalPaid || '0.00'}
+
+IMMEDIATE ACTION REQUIRED: Please make your payment today to avoid late fees.
+
+Contact our office immediately if you need assistance.
+
+Cornven Storage Solutions - Payment Services
+Generated at: ${new Date().toLocaleString()}
+    `.trim();
+    
+    return { subject, html, text };
+  }
+
+  /**
+   * Overdue Payment Reminder Template
+   */
+  static paymentReminderOverdue(data: {
+    tenantName: string;
+    cubeCode: string;
+    dueDate: string;
+    amountDue: string;
+    dailyRent: string;
+    totalPaid?: string;
+  }): { subject: string; html: string; text: string } {
+    const subject = `🔴 OVERDUE NOTICE: Immediate Payment Required - Cube ${data.cubeCode}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ffebee; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #f44336; }
+          .overdue { background: #ffcdd2; border: 2px solid #d32f2f; padding: 20px; border-radius: 5px; margin: 15px 0; }
+          .details { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .consequences { background: #fff3e0; border: 1px solid #ff9800; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+          .amount { color: #d32f2f; font-weight: bold; font-size: 22px; }
+          .overdue-text { color: #d32f2f; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2 class="overdue-text">🔴 OVERDUE PAYMENT NOTICE</h2>
+            <p class="overdue-text">Immediate payment required</p>
+          </div>
+          
+          <div class="overdue">
+            <h3 class="overdue-text">PAYMENT OVERDUE</h3>
+            <p>Dear ${data.tenantName},</p>
+            <p><strong>NOTICE:</strong> Your rental payment for <strong>Cube ${data.cubeCode}</strong> was due on <strong>${data.dueDate}</strong> and is now <strong class="overdue-text">OVERDUE</strong>.</p>
+            <p><strong>IMMEDIATE PAYMENT IS REQUIRED</strong> to avoid further action.</p>
+          </div>
+          
+          <div class="details">
+            <h4>Overdue Payment Details:</h4>
+            <ul>
+              <li><strong>Cube:</strong> ${data.cubeCode}</li>
+              <li><strong>Original Due Date:</strong> <span class="overdue-text">${data.dueDate}</span></li>
+              <li><strong>Overdue Amount:</strong> <span class="amount">$${data.amountDue}</span></li>
+              <li><strong>Daily Rent:</strong> $${data.dailyRent}</li>
+              ${data.totalPaid ? `<li><strong>Total Paid:</strong> $${data.totalPaid}</li>` : ''}
+            </ul>
+          </div>
+          
+          <div class="consequences">
+            <h4>⚠️ Important Notice:</h4>
+            <p>Failure to make immediate payment may result in:</p>
+            <ul>
+              <li>Additional late fees and penalties</li>
+              <li>Suspension of storage access</li>
+              <li>Potential termination of rental agreement</li>
+              <li>Collection proceedings</li>
+            </ul>
+          </div>
+          
+          <p><strong>CONTACT US IMMEDIATELY:</strong> Please make your payment or contact our office today to discuss payment arrangements.</p>
+          
+          <div class="footer">
+            <p>Cornven Storage Solutions - Collections Department</p>
+            <p>Generated at: ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const text = `
+🔴 OVERDUE PAYMENT NOTICE
+
+Dear ${data.tenantName},
+
+NOTICE: Your rental payment for Cube ${data.cubeCode} was due on ${data.dueDate} and is now OVERDUE.
+
+Overdue Payment Details:
+- Cube: ${data.cubeCode}
+- Original Due Date: ${data.dueDate}
+- Overdue Amount: $${data.amountDue}
+- Daily Rent: $${data.dailyRent}
+- Total Paid: $${data.totalPaid || '0.00'}
+
+IMMEDIATE PAYMENT IS REQUIRED to avoid:
+- Additional late fees and penalties
+- Suspension of storage access
+- Potential termination of rental agreement
+- Collection proceedings
+
+CONTACT US IMMEDIATELY to make payment or discuss arrangements.
+
+Cornven Storage Solutions - Collections Department
+Generated at: ${new Date().toLocaleString()}
+    `.trim();
+    
+    return { subject, html, text };
+  }
 }
