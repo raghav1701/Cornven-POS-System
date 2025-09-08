@@ -114,14 +114,13 @@ model ProductVariant {
   size       String
   price      Float
   stock      Int
-  lowStockThreshold Int @default(10)
+  lowStockThreshold Int @default(5)
   barcode    String   @unique      
   barcodeType BarcodeType @default(CODE128) 
   status      VariantStatus @default(PENDING)
   imageKey    String?    
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
   @@unique([productId, color, size])
 
   saleItems  SaleItem[]
