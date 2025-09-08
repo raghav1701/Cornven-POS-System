@@ -54,18 +54,18 @@ async function bootstrap() {
   app.use("/pos", posRouter);
 
   // ─── Initialize Email Service ────────────────────────────────────────────────────
-  try {
-    await emailService.initialize();
-  } catch (error) {
-    console.error("❌ Failed to initialize email service:", error);
-  }
+  // try {
+  //   await emailService.initialize();
+  // } catch (error) {
+  //   console.error("❌ Failed to initialize email service:", error);
+  // }
 
   // ─── Start Automatic Stock Monitoring ───────────────────────────────────────────
-  try {
-    await stockMonitorService.start();
-  } catch (error) {
-    console.error("❌ Failed to start stock monitoring service:", error);
-  }
+  // try {
+  //   await stockMonitorService.start();
+  // } catch (error) {
+  //   console.error("❌ Failed to start stock monitoring service:", error);
+  // }
 
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
