@@ -8,8 +8,8 @@
     "test": "jest --runInBand",
     "build": "prisma generate && tsc",
     "vercel-build": "prisma generate && prisma migrate deploy && tsc",
-    "start": "node dist/app.ts",
-    "dev": "nodemon --watch . --ext ts --ignore dist --exec ts-node app.ts"
+    "start": "node dist/server.js",
+    "dev": "nodemon --watch . --ext ts --ignore dist --exec ts-node server.ts"
   },
   "repository": {
     "type": "git",

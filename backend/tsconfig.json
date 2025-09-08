@@ -7,12 +7,12 @@
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "allowJs": true
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "allowJs": false
   },
-  "include": ["**/*.ts"],
+  "include": ["./**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
