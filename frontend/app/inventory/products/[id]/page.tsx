@@ -38,6 +38,7 @@ export default function TenantProductsPage() {
 
 
 
+
   useEffect(() => {
     // Wait for auth to finish loading before checking authentication
     if (authLoading) {
@@ -89,6 +90,8 @@ export default function TenantProductsPage() {
     loadTenantProducts();
   }, [user, authLoading, params.id, router]);
 
+
+
   const getStatusColor = (status: string) => {
     switch (status?.toUpperCase() || 'PENDING') {
       case 'APPROVED':
@@ -97,17 +100,66 @@ export default function TenantProductsPage() {
         return 'bg-yellow-100 text-yellow-800';
       case 'REJECTED':
         return 'bg-red-100 text-red-800';
+      // case 'MIXED':
+      //   return 'bg-orange-100 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Filter products based on search query
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Calculate aggregated product status based on variants
+  const getAggregatedStatus = (product: AdminProduct) => {
+    if (!product.variants || product.variants.length === 0) {
+      return product.status;
+    }
+
+    const variantStatuses = product.variants.map(v => v.status || 'PENDING');
+    const uniqueStatuses = Array.from(new Set(variantStatuses));
+
+    if (uniqueStatuses.length === 1) {
+      return uniqueStatuses[0];
+    }
+
+    // Mixed statuses
+    const approvedCount = variantStatuses.filter(s => s === 'APPROVED').length;
+    const rejectedCount = variantStatuses.filter(s => s === 'REJECTED').length;
+    const pendingCount = variantStatuses.filter(s => s === 'PENDING').length;
+
+    if (approvedCount > 0 && (pendingCount > 0 || rejectedCount > 0)) {
+      return 'MIXED';
+    }
+
+    return product.status;
+  };
+
+  // Get status display text with variant counts
+  const getStatusDisplayText = (product: AdminProduct) => {
+    const aggregatedStatus = getAggregatedStatus(product);
+    
+    if (aggregatedStatus === 'MIXED' && product.variants) {
+      const approvedCount = product.variants.filter(v => (v.status || 'PENDING') === 'APPROVED').length;
+      const totalCount = product.variants.length;
+      return `Mixed (${approvedCount}/${totalCount} approved)`;
+    }
+
+    return aggregatedStatus;
+  };
+
+  // Filter products based on search query (including variants)
+  const filteredProducts = products.filter(product => {
+    const matchesBasic = product.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.sku?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Also search in variants
+    const matchesVariants = product.variants?.some(variant =>
+      variant.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      variant.color?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      variant.size?.toLowerCase().includes(searchQuery.toLowerCase())
+    ) || false;
+    
+    return matchesBasic || matchesVariants;
+  });
 
   if (loading || authLoading) {
     return (
@@ -162,23 +214,36 @@ export default function TenantProductsPage() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                  <User className="w-8 h-8 mr-3 text-blue-600" />
-                  {tenant.businessName}
-                  <span className={`ml-4 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColorClass((tenant as any).calculatedStatus)}`}>
-                    {getStatusDisplayText((tenant as any).calculatedStatus)}
-                  </span>
-                </h1>
+                <div className="flex items-center justify-between w-full">
+                  <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                    <User className="w-8 h-8 mr-3 text-blue-600" />
+                    {tenant.user.name}
+                    <span className={`ml-4 inline-flex items-center px-3 py-1 text-xs rounded-full font-medium ${
+                      (() => {
+                        const status = tenant.rentals && tenant.rentals.length > 0 ? tenant.rentals[0].status : 'ACTIVE';
+                        switch (status) {
+                          case 'ACTIVE':
+                            return 'bg-green-100 text-green-800';
+                          case 'INACTIVE':
+                            return 'bg-gray-100 text-gray-800';
+                          case 'EXPIRED':
+                            return 'bg-red-100 text-red-800';
+                          case 'PENDING':
+                            return 'bg-yellow-100 text-yellow-800';
+                          default:
+                            return 'bg-gray-100 text-gray-800';
+                        }
+                      })()
+                    }`}>
+                      {tenant.rentals && tenant.rentals.length > 0 ? 
+                        tenant.rentals[0].status.replace(/_/g, ' ') : 'ACTIVE'
+                      }
+                    </span>
+                  </h1>
+                </div>
                 <p className="mt-2 text-gray-600">
-                  {products.length} Products • {tenant.user.name}
+                  {tenant.businessName}
                 </p>
-                {tenant.rentals && tenant.rentals.length > 0 && (
-                  <div className="mt-2 text-sm text-gray-500">
-                    <div>Cube: {tenant.rentals[0].cube.code} ({tenant.rentals[0].cube.size})</div>
-                    <div>Rental Period: {new Date(tenant.rentals[0].startDate).toLocaleDateString()} - {new Date(tenant.rentals[0].endDate).toLocaleDateString()}</div>
-                    <div>Daily Rent: ${tenant.rentals[0].dailyRent?.toLocaleString() || '0'}</div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -217,7 +282,15 @@ export default function TenantProductsPage() {
                 <BarChart3 className="h-8 w-8 text-green-600" />
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-500">Total Stock</p>
-                  <p className="text-2xl font-semibold text-gray-900">{products.reduce((sum, p) => sum + p.stock, 0)}</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {products.reduce((sum, p) => {
+                      // Calculate stock from variants if available, otherwise use product stock
+                      if (p.variants && p.variants.length > 0) {
+                        return sum + p.variants.reduce((variantSum, v) => variantSum + (v.stock || 0), 0);
+                      }
+                      return sum + (p.stock || 0);
+                    }, 0)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -226,7 +299,15 @@ export default function TenantProductsPage() {
                 <DollarSign className="h-8 w-8 text-yellow-600" />
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-500">Total Value</p>
-                  <p className="text-2xl font-semibold text-gray-900">${products.reduce((sum, p) => sum + (p.price * p.stock), 0).toFixed(2)}</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    ${products.reduce((sum, p) => {
+                      // Calculate value from variants if available, otherwise use product data
+                      if (p.variants && p.variants.length > 0) {
+                        return sum + p.variants.reduce((variantSum, v) => variantSum + ((v.price || 0) * (v.stock || 0)), 0);
+                      }
+                      return sum + ((p.price || 0) * (p.stock || 0));
+                    }, 0).toFixed(2)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -235,7 +316,12 @@ export default function TenantProductsPage() {
                 <AlertTriangle className="h-8 w-8 text-red-600" />
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-500">Pending Approval</p>
-                  <p className="text-2xl font-semibold text-gray-900">{products.filter(p => p.status === 'PENDING').length}</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {products.filter(p => {
+                      const aggregatedStatus = getAggregatedStatus(p);
+                      return aggregatedStatus === 'PENDING' || aggregatedStatus === 'MIXED';
+                    }).length}
+                  </p>
                 </div>
               </div>
             </div>
@@ -245,32 +331,36 @@ export default function TenantProductsPage() {
         {/* Products Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 table-fixed">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-1/4 px-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Product
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     SKU
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Price
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Stock
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
+            </table>
+          </div>
+          <div className="overflow-x-auto max-h-[calc(100vh-450px)] overflow-y-auto">
+            <table className="min-w-full table-fixed">
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProducts.length === 0 ? (
                   <tr>
@@ -288,60 +378,96 @@ export default function TenantProductsPage() {
                         setShowProductModal(true);
                       }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="w-1/4 px-8 py-4">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                          <div className="text-sm text-gray-500 truncate max-w-xs">{product.description}</div>
+                          <div className="text-sm font-medium text-gray-900 truncate">{product.name}</div>
+                          {/* <div className="text-sm text-gray-500 truncate">{product.description}</div> */}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                      <td className="w-24 px-6 py-4 text-sm font-mono text-gray-900 truncate">
                         {product.sku}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="w-32 px-6 py-4 text-sm text-gray-900 truncate">
                         {product.category}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                        ${product.price}
+                      <td className="w-28 px-6 py-4 text-sm font-semibold text-green-600">
+                        {product.variants && product.variants.length > 0 ? (
+                          <div>
+                            <div>${product.variants[0].price}</div>
+                            {product.variants.length > 1 && (
+                              <div className="text-xs text-gray-500">
+                                +{product.variants.length - 1} variants
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>${product.price}</div>
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <span className={`text-sm font-medium ${
-                            product.stock === 0 ? 'text-red-600' :
-                            product.stock <= 5 ? 'text-yellow-600' :
-                            'text-gray-900'
-                          }`}>
-                            {product.stock}
-                          </span>
-                          {product.stock <= 5 && product.stock > 0 && (
-                            <AlertTriangle className="w-4 h-4 text-yellow-500 ml-1" />
-                          )}
-                          {product.stock === 0 && (
-                            <AlertTriangle className="w-4 h-4 text-red-500 ml-1" />
-                          )}
-                        </div>
+                      <td className="w-24 px-6 py-4">
+                        {product.variants && product.variants.length > 0 ? (
+                          <div>
+                            {(() => {
+                              const totalStock = product.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+                              return (
+                                <div className="flex items-center">
+                                  <span className={`text-sm font-medium ${
+                                    totalStock === 0 ? 'text-red-600' :
+                                    totalStock <= 5 ? 'text-yellow-600' :
+                                    'text-gray-900'
+                                  }`}>
+                                    {totalStock}
+                                  </span>
+                                  {totalStock <= 5 && totalStock > 0 && (
+                                    <AlertTriangle className="w-4 h-4 text-yellow-500 ml-1" />
+                                  )}
+                                  {totalStock === 0 && (
+                                    <AlertTriangle className="w-4 h-4 text-red-500 ml-1" />
+                                  )}
+                                </div>
+                              );
+                            })()} 
+                            {product.variants.length > 1 && (
+                              <div className="text-xs text-gray-500">
+                                {product.variants.length} variants
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <span className={`text-sm font-medium ${
+                              (product.stock || 0) === 0 ? 'text-red-600' :
+                              (product.stock || 0) <= 5 ? 'text-yellow-600' :
+                              'text-gray-900'
+                            }`}>
+                              {product.stock || 0}
+                            </span>
+                            {(product.stock || 0) <= 5 && (product.stock || 0) > 0 && (
+                              <AlertTriangle className="w-4 h-4 text-yellow-500 ml-1" />
+                            )}
+                            {(product.stock || 0) === 0 && (
+                              <AlertTriangle className="w-4 h-4 text-red-500 ml-1" />
+                            )}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
-                          {product.status}
+                      <td className="w-32 px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getAggregatedStatus(product))}`}>
+                          {getStatusDisplayText(product)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button
-                            title="Edit product"
-                            className="text-indigo-600 hover:text-indigo-900"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            title="Delete product"
-                            className="text-red-600 hover:text-red-900"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                      <td className="w-24 px-6 py-4 text-sm font-medium">
+                        <button
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProduct(product);
+                            setShowProductModal(true);
+                          }}
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          View Variants
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -393,8 +519,8 @@ export default function TenantProductsPage() {
                         <p className="text-gray-600 mt-1">{selectedProduct.description}</p>
                       </div>
                     </div>
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedProduct.status)} flex-shrink-0 ml-4`}>
-                      {selectedProduct.status}
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(getAggregatedStatus(selectedProduct))} flex-shrink-0 ml-4`}>
+                      {getStatusDisplayText(selectedProduct)}
                     </span>
                   </div>
                   
@@ -454,6 +580,7 @@ export default function TenantProductsPage() {
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Value</th>
                           </tr>
                         </thead>
@@ -465,6 +592,15 @@ export default function TenantProductsPage() {
                               <td className="px-4 py-2 text-sm font-mono text-gray-900">{variant.sku}</td>
                               <td className="px-4 py-2 text-sm font-semibold text-green-600">${variant.price}</td>
                               <td className="px-4 py-2 text-sm text-gray-900">{variant.stock}</td>
+                              <td className="px-4 py-2">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  variant.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                                  variant.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {variant.status || 'PENDING'}
+                                </span>
+                              </td>
                               <td className="px-4 py-2 text-sm font-bold text-blue-600">${(variant.price * variant.stock).toFixed(2)}</td>
                             </tr>
                           ))}
