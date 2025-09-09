@@ -780,9 +780,9 @@ export default function InventoryPage() {
                 </div>
 
                 {/* Tenants Table */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[calc(100vh-525px)] overflow-y-auto">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                       <tr>
                         <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Artist
@@ -880,61 +880,20 @@ export default function InventoryPage() {
                                   </div>
                                   <div className="ml-4">
                                     <div className="text-sm font-medium text-gray-900">
-                                      {tenant.businessName}
+                                      {tenant.user.name}
                                     </div>
-                                    <div className="text-xs text-gray-500">
-                                      {tenant.user.name} • {tenant.user.email}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {tenant.user.phone}
-                                    </div>
-                                    {tenant.address && (
-                                      <div className="text-xs text-gray-400 truncate max-w-xs">
-                                        {tenant.address}
-                                      </div>
-                                    )}
-                                    {tenant.notes && (
-                                      <div className="text-xs text-blue-600 font-medium">
-                                        {tenant.notes}
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               </td>
                               <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColorClass(calculateTenantStatus(tenant))}`}>
-                                    {getStatusDisplayText(calculateTenantStatus(tenant))}
-                                  </span>
-                                  {tenant.rentals.length > 0 && (
-                                    <div className="mt-1">
-                                      <div className="text-xs text-gray-500">
-                                        Start: {new Date(tenant.rentals[0].startDate).toLocaleDateString()}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        End: {new Date(tenant.rentals[0].endDate).toLocaleDateString()}
-                                      </div>
-                                      {tenant.rentals[0].lastPayment && (
-                                        <div className="text-xs text-gray-400">
-                                          Last Payment: {new Date(tenant.rentals[0].lastPayment).toLocaleDateString()}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColorClass(calculateTenantStatus(tenant))}`}>
+                                  {getStatusDisplayText(calculateTenantStatus(tenant))}
+                                </span>
                               </td>
                               <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                                 {tenant.rentals.length > 0 ? (
-                                  <div>
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {tenant.rentals[0].cube.code}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {tenant.rentals[0].cube.size} • ${tenant.rentals[0].cube.pricePerDay}/day
-                                    </div>
-                                    <div className="text-xs text-gray-400">
-                                      Status: {tenant.rentals[0].cube.status}
-                                    </div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {tenant.rentals[0].cube.code}
                                   </div>
                                 ) : (
                                   <span className="text-sm text-gray-400">N/A</span>
