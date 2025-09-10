@@ -479,8 +479,15 @@ ${data.details ?
     amountDue: string;
     dailyRent: string;
     totalPaid?: string;
+    balanceDue: string;
+    startDate?: string;
+    endDate?: string;
+    billingPeriodStart?: string;
+    billingPeriodEnd?: string;
+    leaseStartDate?: string;
+    leaseEndDate?: string;
   }): { subject: string; html: string; text: string } {
-    const subject = `💰 Payment Reminder: Rent Due in 7 Days - Cube ${data.cubeCode}`;
+    const subject = `Payment Reminder: Rent Due in 7 Days - Cube ${data.cubeCode}`;
     
     const html = `
       <!DOCTYPE html>
@@ -500,7 +507,7 @@ ${data.details ?
       <body>
         <div class="container">
           <div class="header">
-            <h2>💰 Payment Reminder</h2>
+            <h2>Payment Reminder</h2>
             <p>Your rental payment is due in 7 days</p>
           </div>
           
@@ -513,11 +520,13 @@ ${data.details ?
           <div class="details">
             <h4>Payment Details:</h4>
             <ul>
-              <li><strong>Cube:</strong> ${data.cubeCode}</li>
-              <li><strong>Due Date:</strong> ${data.dueDate}</li>
-              <li><strong>Amount Due:</strong> <span class="amount">$${data.amountDue}</span></li>
+              <li><strong>Billing Period:</strong> ${data.billingPeriodStart || 'N/A'} - ${data.billingPeriodEnd || 'N/A'}</li>
+              <li><strong>Cube ID:</strong> ${data.cubeCode}</li>
+              <li><strong>Tenant Name:</strong> ${data.tenantName}</li>
+              <li><strong>Balance Due:</strong> <span class="amount">$${data.balanceDue}</span></li>
               <li><strong>Daily Rent:</strong> $${data.dailyRent}</li>
-              ${data.totalPaid ? `<li><strong>Total Paid:</strong> $${data.totalPaid}</li>` : ''}
+              <li><strong>Lease Start Date:</strong> ${data.leaseStartDate || 'N/A'}</li>
+              <li><strong>Lease End Date:</strong> ${data.leaseEndDate || 'N/A'}</li>
             </ul>
           </div>
           
@@ -534,18 +543,20 @@ ${data.details ?
     `;
     
     const text = `
-💰 PAYMENT REMINDER - DUE IN 7 DAYS
+PAYMENT REMINDER - DUE IN 7 DAYS
 
 Dear ${data.tenantName},
 
 This is a friendly reminder that your rental payment is due in 7 days.
 
 Payment Details:
-- Cube: ${data.cubeCode}
-- Due Date: ${data.dueDate}
-- Amount Due: $${data.amountDue}
+- Billing Period: ${data.billingPeriodStart || 'N/A'} - ${data.billingPeriodEnd || 'N/A'}
+- Cube ID: ${data.cubeCode}
+- Tenant Name: ${data.tenantName}
+- Balance Due: $${data.balanceDue}
 - Daily Rent: $${data.dailyRent}
-- Total Paid: $${data.totalPaid || '0.00'}
+- Lease Start Date: ${data.leaseStartDate || 'N/A'}
+- Lease End Date: ${data.leaseEndDate || 'N/A'}
 
 Please ensure your payment is made by the due date to avoid any late fees.
 
@@ -566,8 +577,15 @@ Generated at: ${new Date().toLocaleString()}
     amountDue: string;
     dailyRent: string;
     totalPaid?: string;
+    balanceDue: string;
+    startDate?: string;
+    endDate?: string;
+    billingPeriodStart?: string;
+    billingPeriodEnd?: string;
+    leaseStartDate?: string;
+    leaseEndDate?: string;
   }): { subject: string; html: string; text: string } {
-    const subject = `🚨 URGENT: Payment Due Tomorrow - Cube ${data.cubeCode}`;
+    const subject = `URGENT: Payment Due Tomorrow - Cube ${data.cubeCode}`;
     
     const html = `
       <!DOCTYPE html>
@@ -588,7 +606,7 @@ Generated at: ${new Date().toLocaleString()}
       <body>
         <div class="container">
           <div class="header">
-            <h2>🚨 URGENT Payment Reminder</h2>
+            <h2>URGENT Payment Reminder</h2>
             <p class="urgent-text">Payment due tomorrow!</p>
           </div>
           
@@ -602,11 +620,13 @@ Generated at: ${new Date().toLocaleString()}
           <div class="details">
             <h4>Payment Details:</h4>
             <ul>
-              <li><strong>Cube:</strong> ${data.cubeCode}</li>
-              <li><strong>Due Date:</strong> <span class="urgent-text">${data.dueDate}</span></li>
-              <li><strong>Amount Due:</strong> <span class="amount">$${data.amountDue}</span></li>
+              <li><strong>Billing Period:</strong> ${data.billingPeriodStart || 'N/A'} - ${data.billingPeriodEnd || 'N/A'}</li>
+              <li><strong>Cube ID:</strong> ${data.cubeCode}</li>
+              <li><strong>Tenant Name:</strong> ${data.tenantName}</li>
+              <li><strong>Balance Due:</strong> <span class="amount">$${data.balanceDue}</span></li>
               <li><strong>Daily Rent:</strong> $${data.dailyRent}</li>
-              ${data.totalPaid ? `<li><strong>Total Paid:</strong> $${data.totalPaid}</li>` : ''}
+              <li><strong>Lease Start Date:</strong> ${data.leaseStartDate || 'N/A'}</li>
+              <li><strong>Lease End Date:</strong> ${data.leaseEndDate || 'N/A'}</li>
             </ul>
           </div>
           
@@ -623,18 +643,20 @@ Generated at: ${new Date().toLocaleString()}
     `;
     
     const text = `
-🚨 URGENT PAYMENT REMINDER - DUE TOMORROW
+URGENT PAYMENT REMINDER - DUE TOMORROW
 
 Dear ${data.tenantName},
 
 URGENT: Your rental payment for Cube ${data.cubeCode} is due TOMORROW (${data.dueDate}).
 
 Payment Details:
-- Cube: ${data.cubeCode}
-- Due Date: ${data.dueDate}
-- Amount Due: $${data.amountDue}
+- Billing Period: ${data.billingPeriodStart || 'N/A'} - ${data.billingPeriodEnd || 'N/A'}
+- Cube ID: ${data.cubeCode}
+- Tenant Name: ${data.tenantName}
+- Balance Due: $${data.balanceDue}
 - Daily Rent: $${data.dailyRent}
-- Total Paid: $${data.totalPaid || '0.00'}
+- Lease Start Date: ${data.leaseStartDate || 'N/A'}
+- Lease End Date: ${data.leaseEndDate || 'N/A'}
 
 IMMEDIATE ACTION REQUIRED: Please make your payment today to avoid late fees.
 
@@ -657,8 +679,15 @@ Generated at: ${new Date().toLocaleString()}
     amountDue: string;
     dailyRent: string;
     totalPaid?: string;
+    balanceDue?: string;
+    startDate?: string;
+    endDate?: string;
+    billingPeriodStart?: string;
+    billingPeriodEnd?: string;
+    leaseStartDate?: string;
+    leaseEndDate?: string;
   }): { subject: string; html: string; text: string } {
-    const subject = `🔴 OVERDUE NOTICE: Immediate Payment Required - Cube ${data.cubeCode}`;
+    const subject = `OVERDUE NOTICE: Immediate Payment Required - Cube ${data.cubeCode}`;
     
     const html = `
       <!DOCTYPE html>
@@ -680,7 +709,7 @@ Generated at: ${new Date().toLocaleString()}
       <body>
         <div class="container">
           <div class="header">
-            <h2 class="overdue-text">🔴 OVERDUE PAYMENT NOTICE</h2>
+            <h2 class="overdue-text">OVERDUE PAYMENT NOTICE</h2>
             <p class="overdue-text">Immediate payment required</p>
           </div>
           
@@ -694,16 +723,18 @@ Generated at: ${new Date().toLocaleString()}
           <div class="details">
             <h4>Overdue Payment Details:</h4>
             <ul>
-              <li><strong>Cube:</strong> ${data.cubeCode}</li>
-              <li><strong>Original Due Date:</strong> <span class="overdue-text">${data.dueDate}</span></li>
-              <li><strong>Overdue Amount:</strong> <span class="amount">$${data.amountDue}</span></li>
+              <li><strong>Billing Period:</strong> ${data.billingPeriodStart || 'N/A'} - ${data.billingPeriodEnd || 'N/A'}</li>
+              <li><strong>Cube ID:</strong> ${data.cubeCode}</li>
+              <li><strong>Tenant Name:</strong> ${data.tenantName}</li>
+              <li><strong>Balance Due:</strong> <span class="amount">$${data.balanceDue || data.amountDue}</span></li>
               <li><strong>Daily Rent:</strong> $${data.dailyRent}</li>
-              ${data.totalPaid ? `<li><strong>Total Paid:</strong> $${data.totalPaid}</li>` : ''}
+              <li><strong>Lease Start Date:</strong> ${data.leaseStartDate || 'N/A'}</li>
+              <li><strong>Lease End Date:</strong> ${data.leaseEndDate || 'N/A'}</li>
             </ul>
           </div>
           
           <div class="consequences">
-            <h4>⚠️ Important Notice:</h4>
+            <h4>Important Notice:</h4>
             <p>Failure to make immediate payment may result in:</p>
             <ul>
               <li>Additional late fees and penalties</li>
@@ -725,18 +756,20 @@ Generated at: ${new Date().toLocaleString()}
     `;
     
     const text = `
-🔴 OVERDUE PAYMENT NOTICE
+OVERDUE PAYMENT NOTICE
 
 Dear ${data.tenantName},
 
 NOTICE: Your rental payment for Cube ${data.cubeCode} was due on ${data.dueDate} and is now OVERDUE.
 
 Overdue Payment Details:
-- Cube: ${data.cubeCode}
-- Original Due Date: ${data.dueDate}
-- Overdue Amount: $${data.amountDue}
+- Billing Period: ${data.billingPeriodStart || 'N/A'} - ${data.billingPeriodEnd || 'N/A'}
+- Cube ID: ${data.cubeCode}
+- Tenant Name: ${data.tenantName}
+- Balance Due: $${data.balanceDue || data.amountDue}
 - Daily Rent: $${data.dailyRent}
-- Total Paid: $${data.totalPaid || '0.00'}
+- Lease Start Date: ${data.leaseStartDate || 'N/A'}
+- Lease End Date: ${data.leaseEndDate || 'N/A'}
 
 IMMEDIATE PAYMENT IS REQUIRED to avoid:
 - Additional late fees and penalties
