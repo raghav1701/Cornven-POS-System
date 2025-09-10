@@ -1,42 +1,98 @@
-import { prisma } from "../prisma/prisma";
-import { emailService } from "./emailService";
-import { summarizeRental } from "../utils/billing";
-import { EmailTemplates } from "../templates/emailTemplates";
+import { PrismaClient } from '@prisma/client';
+import { emailService } from './emailService';
+import { formatDateToReadable } from '../utils/paymentReminderUtils';
+import { EmailTemplates } from '../templates/emailTemplates';
+import { calculateOverdueBalance, formatOverdueDetails, getCompletedCycleBoundaries } from '../utils/overdueCalculation';
 
-type PaymentReminderType = 'SEVEN_DAY_ADVANCE' | 'ONE_DAY_DUE' | 'OVERDUE';
+const prisma = new PrismaClient();
 
-interface ReminderStats {
-  processed: number;
-  sent: number;
-  skipped: number;
-  errors: number;
-  results: Array<{
-    rentalId: string;
-    tenantName: string;
-    reminderType: PaymentReminderType;
-    dueDate: Date;
-    amountDue: number;
-    emailSent: boolean;
-    error?: string;
+// Helper function to get 14-day billing cycle boundaries
+function getCycleBoundaries(startDate: Date, currentDate: Date): { cycleStart: Date; cycleEnd: Date } {
+  const start = new Date(startDate);
+  const current = new Date(currentDate);
+  
+  // Calculate days since start
+  const daysSinceStart = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Calculate which 14-day cycle we're in (0-based)
+  const cycleNumber = Math.floor(daysSinceStart / 14);
+  
+  // Calculate cycle boundaries
+  const cycleStart = new Date(start.getTime() + (cycleNumber * 14 * 24 * 60 * 60 * 1000));
+  const cycleEnd = new Date(start.getTime() + ((cycleNumber + 1) * 14 * 24 * 60 * 60 * 1000));
+  
+  return { cycleStart, cycleEnd };
+}
+
+// Date utility functions
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function toUTCDateOnly(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
+}
+
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getTime() + n * MS_PER_DAY);
+}
+
+function daysBetween(a: Date, b: Date): number {
+  const A = toUTCDateOnly(a);
+  const B = toUTCDateOnly(b);
+  return Math.max(0, Math.floor((B.getTime() - A.getTime()) / MS_PER_DAY));
+}
+
+export interface RentalWithRelations {
+  id: string;
+  startDate: Date;
+  endDate: Date;
+  dailyRent: number;
+  tenant: {
+    id: string;
+    businessName: string;
+    address: string | null;
+    notes: string | null;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      phone: string | null;
+    };
+  };
+  cube: {
+    id: string;
+    code: string;
+  } | null;
+  payments: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    paidAt: Date;
+    receivedById: string | null;
+    note: string | null;
+    createdAt: Date;
   }>;
 }
 
-class PaymentReminderService {
-  /**
-   * Manually trigger payment reminders for all active rentals
-   * This checks all rentals and sends appropriate reminders based on due dates
-   */
-  async triggerPaymentReminders(): Promise<ReminderStats> {
-    const stats: ReminderStats = {
-      processed: 0,
-      sent: 0,
-      skipped: 0,
-      errors: 0,
-      results: []
-    };
+export enum ReminderType {
+  SEVEN_DAY_ADVANCE = 'SEVEN_DAY_ADVANCE',
+  ONE_DAY_DUE = 'ONE_DAY_DUE',
+  OVERDUE = 'OVERDUE'
+}
+
+export class PaymentReminderService {
+  async triggerPaymentReminders(): Promise<{
+    processed: number;
+    emailsSent: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let processed = 0;
+    let emailsSent = 0;
 
     try {
-      // Get all active rentals with tenant and cube information
+      // Get all active rentals with tenant and payment information
       const rentals = await prisma.rental.findMany({
         where: {
           status: 'ACTIVE'
@@ -52,385 +108,372 @@ class PaymentReminderService {
         }
       });
 
-      const now = new Date();
+      console.log(`Found ${rentals.length} active rentals to process`);
 
-      // Process each rental
       for (const rental of rentals) {
-        stats.processed++;
-        
         try {
-          // Get rental summary for payment calculations
-          const summary = summarizeRental(rental, rental.payments || []);
+          processed++;
           
-          // Debug: Rental summary (can be removed in production)
-          console.log(`🔍 Processing rental ${rental.id} (${rental.tenant.businessName}) - Accrued: $${summary.accruedToDate}, Balance: $${summary.balanceDue}`);
-          
-          // Send reminders if there's any accrued amount or balance due
-          if (summary.accruedToDate > 0 || summary.balanceDue > 0) {
-            const initialSentCount = stats.sent;
-            
-            // Check for 7-day advance reminder
-            await this.checkSevenDayReminder(rental, summary, now, stats);
-            
-            // Check for 1-day due reminder
-            await this.checkOneDayReminder(rental, summary, now, stats);
-            
-            // Check for overdue reminder
-            await this.checkOverdueReminder(rental, summary, now, stats);
-            
-            // If no standard reminders were sent for this rental but there's significant accrued amount, send a general reminder
-            const reminderSentForThisRental = stats.sent > initialSentCount;
-            if (!reminderSentForThisRental && summary.accruedToDate > 50) {
-              // Check if we already sent a general reminder for this due date
-              const existingGeneralReminder = await (prisma as any).paymentReminder.findFirst({
-                where: {
-                  rentalId: rental.id,
-                  reminderType: 'SEVEN_DAY_ADVANCE',
-                  dueDate: summary.nextDueDate
-                }
-              });
-              
-              if (!existingGeneralReminder) {
-                console.log(`   💰 Sending reminder for accrued amount: $${summary.accruedToDate}`);
-                await this.sendReminder(
-                  rental,
-                  'SEVEN_DAY_ADVANCE', // Use 7-day template as default
-                  summary.nextDueDate,
-                  summary.accruedToDate,
-                  stats
-                );
-              } else {
-                console.log(`   ⏭️  General reminder already sent for this due date`);
-              }
-            }
-          } else {
-            // Rental skipped - no accrued amount or balance due
-            stats.skipped++;
-          }
+          console.log(`Processing rental ${rental.id} for tenant ${rental.tenant.businessName}`);
+
+          // Check for different reminder types using custom logic
+          const sevenDayResult = await this.checkSevenDayReminder(rental as RentalWithRelations);
+          const oneDayResult = await this.checkOneDayReminder(rental as RentalWithRelations);
+          const overdueResult = await this.checkOverdueReminder(rental as RentalWithRelations);
+
+          if (sevenDayResult.sent) emailsSent++;
+          if (oneDayResult.sent) emailsSent++;
+          if (overdueResult.sent) emailsSent++;
+
+          if (sevenDayResult.error) errors.push(sevenDayResult.error);
+          if (oneDayResult.error) errors.push(oneDayResult.error);
+          if (overdueResult.error) errors.push(overdueResult.error);
+
         } catch (error) {
-          stats.errors++;
-          stats.results.push({
-            rentalId: rental.id,
-            tenantName: rental.tenant.businessName,
-            reminderType: 'SEVEN_DAY_ADVANCE',
-            dueDate: new Date(),
-            amountDue: 0,
-            emailSent: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
+          const errorMsg = `Error processing rental ${rental.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          console.error(errorMsg);
+          errors.push(errorMsg);
         }
       }
 
-      return stats;
     } catch (error) {
-      console.error('Error in triggerPaymentReminders:', error);
-      throw error;
+      const errorMsg = `Error fetching rentals: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMsg);
+      errors.push(errorMsg);
     }
+
+    return {
+      processed,
+      emailsSent,
+      errors
+    };
   }
 
-  /**
-   * Check if rental needs 7-day advance reminder
-   */
   private async checkSevenDayReminder(
-    rental: any,
-    summary: any,
-    now: Date,
-    stats: ReminderStats
-  ): Promise<void> {
-    // Use the nextDueDate from the billing summary
-    const nextDueDate = summary.nextDueDate;
-    
-    // Check if we're 7 days before due date
-    const sevenDaysFromNow = new Date(now);
-    sevenDaysFromNow.setDate(now.getDate() + 7);
-    
-    if (sevenDaysFromNow >= nextDueDate) {
-      // Check if we already sent this reminder
-       const existingReminder = await (prisma as any).paymentReminder.findFirst({
-        where: {
-          rentalId: rental.id,
-          reminderType: 'SEVEN_DAY_ADVANCE',
-          dueDate: nextDueDate
-        }
-      });
-      
-      if (!existingReminder) {
-        // Use accruedToDate from billing summary for 7-day advance reminder
-        // This shows the tenant what they currently owe (accrued rent)
-        const amountDue = summary.accruedToDate;
-        
-        await this.sendReminder(
-          rental,
-          'SEVEN_DAY_ADVANCE',
-          nextDueDate,
-          amountDue,
-          stats
-        );
-      } else {
-        stats.skipped++;
-      }
-    }
-  }
-
-  /**
-   * Check if rental needs 1-day due reminder
-   */
-  private async checkOneDayReminder(
-    rental: any,
-    summary: any,
-    now: Date,
-    stats: ReminderStats
-  ): Promise<void> {
-    // Use the nextDueDate from the billing summary
-    const nextDueDate = summary.nextDueDate;
-    const oneDayFromNow = new Date(now);
-    oneDayFromNow.setDate(now.getDate() + 1);
-    
-    if (oneDayFromNow >= nextDueDate) {
-      const existingReminder = await (prisma as any).paymentReminder.findFirst({
-        where: {
-          rentalId: rental.id,
-          reminderType: 'ONE_DAY_DUE',
-          dueDate: nextDueDate
-        }
-      });
-      
-      if (!existingReminder) {
-        // Calculate actual amount owed from completed billing periods
-        const actualAmountDue = Math.max(0, summary.dueToDate - summary.totalPaid);
-        
-        await this.sendReminder(
-          rental,
-          'ONE_DAY_DUE',
-          nextDueDate,
-          actualAmountDue,
-          stats
-        );
-      } else {
-        stats.skipped++;
-      }
-    }
-  }
-
-  /**
-   * Check if rental needs overdue reminder
-   */
-  private async checkOverdueReminder(
-    rental: any,
-    summary: any,
-    now: Date,
-    stats: ReminderStats
-  ): Promise<void> {
-    // Use the overdue flag and lastDueDate from the billing summary
-    if (summary.overdue) {
-      const existingReminder = await (prisma as any).paymentReminder.findFirst({
-        where: {
-          rentalId: rental.id,
-          reminderType: 'OVERDUE',
-          dueDate: summary.lastDueDate
-        }
-      });
-      
-      if (!existingReminder) {
-        // Calculate total amount owed including unbilled if lease ended
-        const leaseEnded = new Date(now) >= new Date(rental.endDate);
-        const totalOwed = summary.dueToDate + (leaseEnded ? summary.unbilledAccrued : 0) - summary.totalPaid;
-        const overdueAmount = Math.max(0, totalOwed);
-        
-        await this.sendReminder(
-          rental,
-          'OVERDUE',
-          summary.lastDueDate,
-          overdueAmount,
-          stats
-        );
-      } else {
-        stats.skipped++;
-      }
-    }
-  }
-
-  /**
-   * Send reminder email and record in database
-   */
-  private async sendReminder(
-    rental: any,
-    reminderType: PaymentReminderType,
-    dueDate: Date,
-    amountDue: number,
-    stats: ReminderStats
-  ): Promise<void> {
+    rental: RentalWithRelations
+  ): Promise<{ sent: boolean; error?: string }> {
     try {
-      // Get fresh billing summary for comprehensive email data
-      const payments = await (prisma as any).payment.findMany({
-        where: { rentalId: rental.id },
-        select: { amount: true, paidAt: true }
-      });
-      const summary = summarizeRental(rental, payments);
+      const today = new Date();
       
-      // Determine the correct amount due based on reminder type and billing variables
-      let correctAmountDue: number;
-      switch (reminderType) {
-        case 'SEVEN_DAY_ADVANCE':
-          // For 7-day advance: show total accrued amount (what they owe so far)
-          correctAmountDue = summary.accruedToDate;
-          break;
-        case 'ONE_DAY_DUE':
-          // For 1-day due: show balance due (what's officially owed minus payments)
-          correctAmountDue = summary.balanceDue;
-          break;
-        case 'OVERDUE':
-          // For overdue: use the amount passed from checkOverdueReminder calculation
-          correctAmountDue = amountDue;
-          break;
-        default:
-          correctAmountDue = amountDue;
+      // ═══════════════════════════════════════════════════════════════
+      //                    📊 SEVEN DAY REMINDER ANALYSIS
+      // ═══════════════════════════════════════════════════════════════
+      
+      console.log('\n🔍 Processing Seven Day Reminder for:', rental.tenant.businessName);
+      console.log('📍 Cube:', rental.cube?.code || 'N/A');
+      console.log('📅 Analysis Date:', today.toISOString().split('T')[0]);
+      
+      // 📋 RENTAL PERIOD INFORMATION
+      console.log('\n📋 Rental Period:');
+      console.log('   ├─ Start Date:', rental.startDate.toISOString().split('T')[0]);
+      console.log('   ├─ End Date:', rental.endDate.toISOString().split('T')[0]);
+      const duration = Math.ceil((rental.endDate.getTime() - rental.startDate.getTime()) / (1000 * 60 * 60 * 24));
+      console.log('   └─ Total Duration:', duration, 'days');
+      
+      // ⏰ TIME CALCULATIONS (Following your exact logic)
+      const dayPassed = daysBetween(rental.startDate, today);
+      const billingCycle = 14;
+      const currentCycle = Math.floor(dayPassed / billingCycle) + 1;
+      const flag = (currentCycle * billingCycle) - duration;
+      
+      console.log('\n⏰ Time Analysis:');
+      console.log('   ├─ Days Elapsed:', dayPassed, 'days');
+      console.log('   ├─ Billing Cycle:', billingCycle, 'days');
+      console.log('   ├─ Current Cycle:', currentCycle);
+      console.log('   └─ Cycle Flag:', flag);
+      
+      // 💰 FINANCIAL CALCULATIONS (Your exact formula)
+      const amountPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
+      
+      let balanceDue: number;
+      if (flag <= 0) {
+        // If flag is 0 or negative: balanceDue = (billingCycle)(currentCycle)(dailyRent) - amountPaid
+        balanceDue = (billingCycle * currentCycle * rental.dailyRent) - amountPaid;
+      } else {
+        // If flag is positive: balanceDue = (billingCycle)(currentCycle)(dailyRent) - amountPaid - (flag)(dailyRent)
+        balanceDue = (billingCycle * currentCycle * rental.dailyRent) - amountPaid - (flag * rental.dailyRent);
       }
+      
+      console.log('\n💰 Financial Summary:');
+      console.log('   ├─ Daily Rent Rate: $' + rental.dailyRent.toFixed(2));
+      console.log('   ├─ Billing Cycle: ' + billingCycle + ' days');
+      console.log('   ├─ Current Cycle: ' + currentCycle);
+      console.log('   ├─ Flag Value: ' + flag + (flag <= 0 ? ' (≤0: full cycles)' : ' (>0: partial cycle)'));
+      console.log('   ├─ Total Payments: $' + amountPaid.toFixed(2), `(${rental.payments.length} payments)`);
+      console.log('   └─ Balance Due: $' + balanceDue.toFixed(2));
+      
+      console.log('\n' + '═'.repeat(65));
+      
+      // Get cycle boundaries for 14-day billing cycle
+      const { cycleStart, cycleEnd } = getCycleBoundaries(rental.startDate, today);
+      
+      // Calculate days until cycle end (due date)
+      const daysUntilDue = Math.ceil((cycleEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      console.log(`Seven day check for rental ${rental.id}: days until due = ${daysUntilDue}`);
+      
+      if (daysUntilDue === 7) {
+        // Check if we already sent this reminder for this cycle
+        const existingReminder = await prisma.paymentReminder.findFirst({
+          where: {
+            rentalId: rental.id,
+            reminderType: ReminderType.SEVEN_DAY_ADVANCE,
+            dueDate: cycleEnd
+          }
+        });
 
+        if (existingReminder) {
+          console.log(`Seven day reminder already sent for rental ${rental.id} with due date ${cycleEnd.toISOString()}`);
+          return { sent: false };
+        }
+
+        // Calculate balance due using your exact formula
+        const totalPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const duration = Math.ceil((rental.endDate.getTime() - rental.startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const dayPassed = daysBetween(rental.startDate, today);
+        const billingCycle = 14;
+        const currentCycle = Math.floor(dayPassed / billingCycle) + 1;
+        const flag = (currentCycle * billingCycle) - duration;
+        
+        let serviceBalanceDue: number;
+        if (flag <= 0) {
+          serviceBalanceDue = (billingCycle * currentCycle * rental.dailyRent) - totalPaid;
+        } else {
+          serviceBalanceDue = (billingCycle * currentCycle * rental.dailyRent) - totalPaid - (flag * rental.dailyRent);
+        }
+
+        // Validate amount
+        if (serviceBalanceDue <= 0) {
+           const error = `Invalid amount due: must be greater than 0 for ${rental.tenant.businessName}'s ${ReminderType.SEVEN_DAY_ADVANCE} reminder with due date ${cycleEnd.toISOString()} and amount due ${serviceBalanceDue}`;
+           console.error(error);
+           return { sent: false, error };
+         }
+
+        return await this.sendReminder(
+          rental,
+          ReminderType.SEVEN_DAY_ADVANCE,
+          serviceBalanceDue,
+          cycleEnd
+        );
+      }
+      
+      return { sent: false };
+    } catch (error) {
+      const errorMsg = `Error in seven day reminder check for rental ${rental.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMsg);
+      return { sent: false, error: errorMsg };
+    }
+  }
+
+  private async checkOneDayReminder(
+    rental: RentalWithRelations
+  ): Promise<{ sent: boolean; error?: string }> {
+    try {
+      const today = new Date();
+      
+      // Get cycle boundaries for 14-day billing cycle
+      const { cycleStart, cycleEnd } = getCycleBoundaries(rental.startDate, today);
+      
+      // Calculate days until cycle end (due date)
+      const daysUntilDue = Math.ceil((cycleEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      console.log(`One day check for rental ${rental.id}: days until due = ${daysUntilDue}`);
+      
+      if (daysUntilDue === 1) {
+        // Check if we already sent this reminder for this cycle
+        const existingReminder = await prisma.paymentReminder.findFirst({
+          where: {
+            rentalId: rental.id,
+            reminderType: ReminderType.ONE_DAY_DUE,
+            dueDate: cycleEnd
+          }
+        });
+
+        if (existingReminder) {
+          console.log(`One day reminder already sent for rental ${rental.id} with due date ${cycleEnd.toISOString()}`);
+          return { sent: false };
+        }
+
+        // Calculate balance due using your exact formula
+        const totalPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const duration = Math.ceil((rental.endDate.getTime() - rental.startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const dayPassed = daysBetween(rental.startDate, today);
+        const billingCycle = 14;
+        const currentCycle = Math.floor(dayPassed / billingCycle) + 1;
+        const flag = (currentCycle * billingCycle) - duration;
+        
+        let balanceDue: number;
+        if (flag <= 0) {
+          balanceDue = (billingCycle * currentCycle * rental.dailyRent) - totalPaid;
+        } else {
+          balanceDue = (billingCycle * currentCycle * rental.dailyRent) - totalPaid - (flag * rental.dailyRent);
+        }
+
+        // Validate amount
+        if (balanceDue <= 0) {
+           const error = `Invalid amount due: must be greater than 0 for ${rental.tenant.businessName}'s ${ReminderType.ONE_DAY_DUE} reminder with due date ${cycleEnd.toISOString()} and amount due ${balanceDue}`;
+           console.error(error);
+           return { sent: false, error };
+         }
+
+        return await this.sendReminder(
+          rental,
+          ReminderType.ONE_DAY_DUE,
+          balanceDue,
+          cycleEnd
+        );
+      }
+      
+      return { sent: false };
+    } catch (error) {
+      const errorMsg = `Error in one day reminder check for rental ${rental.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMsg);
+      return { sent: false, error: errorMsg };
+    }
+  }
+
+
+
+  private async checkOverdueReminder(
+    rental: RentalWithRelations
+  ): Promise<{ sent: boolean; error?: string }> {
+    try {
+      const today = new Date();
+      const totalPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
+      
+      // Use new overdue calculation logic for completed cycles only
+      const overdueResult = calculateOverdueBalance(
+        rental.startDate,
+        today,
+        rental.endDate,
+        rental.dailyRent,
+        totalPaid,
+        14 // billing cycle
+      );
+      
+      console.log(`\n${'═'.repeat(65)}`);
+      console.log(`🔍 OVERDUE CHECK - ${rental.tenant.businessName}`);
+      console.log(`${'═'.repeat(65)}`);
+      console.log(`📊 ${formatOverdueDetails(overdueResult)}`);
+      console.log(`${'═'.repeat(65)}\n`);
+      
+      if (overdueResult.shouldTriggerOverdue) {
+        // Get the last completed cycle boundaries for due date
+        const lastCompletedCycle = overdueResult.completedCycles - 1;
+        const { cycleEnd } = getCompletedCycleBoundaries(rental.startDate, lastCompletedCycle, 14);
+        
+        // Check if we already sent this reminder for this completed cycle
+        const existingReminder = await prisma.paymentReminder.findFirst({
+          where: {
+            rentalId: rental.id,
+            reminderType: ReminderType.OVERDUE,
+            dueDate: cycleEnd
+          }
+        });
+
+        if (existingReminder) {
+          console.log(`⚠️  Overdue reminder already sent for rental ${rental.id} with due date ${cycleEnd.toISOString()}`);
+          return { sent: false };
+        }
+
+        // Validate amount
+        if (overdueResult.balanceDue <= 0) {
+           const error = `Invalid amount due: must be greater than 0 for ${rental.tenant.businessName}'s ${ReminderType.OVERDUE} reminder with due date ${cycleEnd.toISOString()} and amount due ${overdueResult.balanceDue}`;
+           console.error(error);
+           return { sent: false, error };
+         }
+
+        console.log(`📧 Sending overdue reminder: $${overdueResult.balanceDue.toFixed(2)} due from ${overdueResult.completedCycles} completed cycles`);
+        
+        return await this.sendReminder(
+          rental,
+          ReminderType.OVERDUE,
+          overdueResult.balanceDue,
+          cycleEnd
+        );
+      }
+      
+      console.log(`✅ No overdue reminder needed - either no completed cycles or balance is paid`);
+      return { sent: false };
+    } catch (error) {
+      const errorMsg = `Error in overdue reminder check for rental ${rental.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMsg);
+      return { sent: false, error: errorMsg };
+    }
+  }
+
+  private async sendReminder(
+    rental: RentalWithRelations,
+    reminderType: ReminderType,
+    amount: number,
+    dueDate: Date
+  ): Promise<{ sent: boolean; error?: string }> {
+    try {
+      console.log(`Sending ${reminderType} reminder for rental ${rental.id}, amount: ${amount}, due date: ${dueDate.toISOString()}`);
+      
+      // Get current billing cycle boundaries
+      const today = new Date();
+      const { cycleStart, cycleEnd } = getCycleBoundaries(rental.startDate, today);
+      
+      // Get email template data
       const emailData = {
         tenantName: rental.tenant.businessName,
         cubeCode: rental.cube?.code || 'N/A',
-        dueDate: dueDate.toLocaleDateString(),
-        amountDue: summary.accruedToDate.toFixed(2),
+        dueDate: formatDateToReadable(dueDate),
+        amountDue: amount.toFixed(2),
         dailyRent: rental.dailyRent.toFixed(2),
-        totalPaid: summary.totalPaid.toFixed(2),
-        reminderType
+        totalPaid: rental.payments.reduce((sum, payment) => sum + payment.amount, 0).toFixed(2),
+        balanceDue: amount.toFixed(2),
+        startDate: formatDateToReadable(rental.startDate),
+        endDate: formatDateToReadable(rental.endDate),
+        billingPeriodStart: formatDateToReadable(cycleStart),
+        billingPeriodEnd: formatDateToReadable(cycleEnd),
+        leaseStartDate: formatDateToReadable(rental.startDate),
+        leaseEndDate: formatDateToReadable(rental.endDate)
       };
       
-      // Get email template
-       const template = this.getEmailTemplate(reminderType, emailData);
+      // Get email template based on reminder type
+      let template;
+      switch (reminderType) {
+        case ReminderType.SEVEN_DAY_ADVANCE:
+          template = EmailTemplates.paymentReminder7Day(emailData);
+          break;
+        case ReminderType.ONE_DAY_DUE:
+          template = EmailTemplates.paymentReminder1Day(emailData);
+          break;
+        case ReminderType.OVERDUE:
+          template = EmailTemplates.paymentReminderOverdue(emailData);
+          break;
+        default:
+          throw new Error(`Unknown reminder type: ${reminderType}`);
+      }
       
       // Send email
-      const emailResult = await emailService.sendEmail({
+      await emailService.sendEmail({
         to: rental.tenant.user.email,
         subject: template.subject,
         html: template.html
       });
-      
-      const emailSent = emailResult.success;
 
       // Record the reminder in database
-       await (prisma as any).paymentReminder.create({
-        data: {
-          rentalId: rental.id,
-          reminderType,
-          dueDate,
-          emailSent
-        }
-      });
+       await prisma.paymentReminder.create({
+         data: {
+           rentalId: rental.id,
+           reminderType,
+           dueDate,
+           emailSent: true
+         }
+       });
 
-      if (emailSent) {
-        stats.sent++;
-      }
-
-      stats.results.push({
-        rentalId: rental.id,
-        tenantName: rental.tenant.businessName,
-        reminderType,
-        dueDate,
-        amountDue,
-        emailSent,
-        error: emailSent ? undefined : emailResult.error
-      });
+      console.log(`Successfully sent ${reminderType} reminder for rental ${rental.id}`);
+      return { sent: true };
     } catch (error) {
-      stats.errors++;
-      stats.results.push({
-        rentalId: rental.id,
-        tenantName: rental.tenant.businessName,
-        reminderType,
-        dueDate,
-        amountDue,
-        emailSent: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      const errorMsg = `Error sending ${reminderType} reminder for rental ${rental.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMsg);
+      return { sent: false, error: errorMsg };
     }
   }
 
-  /**
-   * Get reminder history for a specific rental or all rentals
-   */
-  async getReminderHistory(rentalId?: string): Promise<any[]> {
-    const reminders = await (prisma as any).paymentReminder.findMany({
-      where: rentalId ? { rentalId } : {},
-      include: {
-        rental: {
-          include: {
-            tenant: { 
-              select: { 
-                businessName: true,
-                user: { select: { email: true } }
-              } 
-            },
-            cube: { select: { code: true } }
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    return reminders;
-  }
-
-  /**
-   * Get all overdue rentals that need immediate attention
-   */
-  async getOverdueRentals(): Promise<any[]> {
-    const overdueRentals = await (prisma as any).paymentReminder.findMany({
-      where: {
-        reminderType: 'OVERDUE'
-      },
-      include: {
-        rental: {
-          include: {
-            tenant: { 
-              select: { 
-                businessName: true,
-                user: { select: { email: true } }
-              } 
-            },
-            cube: { select: { code: true } }
-          }
-        }
-      },
-      orderBy: {
-        dueDate: 'asc'
-      }
-    });
-
-    return overdueRentals;
-  }
-
-   /**
-    * Get email template based on reminder type
-    */
-   private getEmailTemplate(reminderType: PaymentReminderType, data: any) {
-     const templateData = {
-       tenantName: data.tenantName,
-       cubeCode: data.cubeCode,
-       dueDate: data.dueDate,
-       amountDue: data.amountDue,
-       dailyRent: data.dailyRent,
-       totalPaid: data.totalPaid,
-       accruedToDate: data.accruedToDate,
-       unbilledAccrued: data.unbilledAccrued,
-       nextDueDate: data.nextDueDate,
-       startDate: new Date().toLocaleDateString(),
-       endDate: new Date().toLocaleDateString()
-     };
-
-     switch (reminderType) {
-       case 'SEVEN_DAY_ADVANCE':
-         return EmailTemplates.paymentReminder7Day(templateData);
-       case 'ONE_DAY_DUE':
-         return EmailTemplates.paymentReminder1Day(templateData);
-       case 'OVERDUE':
-         return EmailTemplates.paymentReminderOverdue(templateData);
-       default:
-         throw new Error(`Unknown reminder type: ${reminderType}`);
-     }
-   }
 }
 
 export const paymentReminderService = new PaymentReminderService();

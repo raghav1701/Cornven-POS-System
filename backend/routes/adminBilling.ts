@@ -130,6 +130,33 @@ router.get("/rentals/overdue", async (_req, res) => {
 });
 
 /**
+ * DELETE /admin/payment-reminders/clear
+ * Clear all payment reminder history for testing purposes
+ */
+router.delete("/payment-reminders/clear", async (req, res) => {
+  try {
+    console.log("Clearing payment reminder history for testing");
+    
+    const deletedCount = await (prisma as any).paymentReminder.deleteMany({});
+    
+    res.json({
+      success: true,
+      message: "Payment reminder history cleared successfully",
+      deletedCount: deletedCount.count,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error clearing payment reminders:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to clear payment reminders",
+      message: error instanceof Error ? error.message : "Unknown error occurred",
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
  * POST /admin/payment-reminders/trigger
  * Manually trigger payment reminder checks for all active rentals
  * This will check all rentals and send appropriate reminder emails
@@ -145,10 +172,9 @@ router.post("/payment-reminders/trigger", async (req, res) => {
        message: "Payment reminder check completed successfully",
        stats: {
          totalRentalsProcessed: result.processed,
-         totalEmailsSent: result.sent,
-         totalSkipped: result.skipped,
-         totalErrors: result.errors,
-         details: result.results
+         totalEmailsSent: result.emailsSent,
+         totalErrors: result.errors.length,
+         errors: result.errors
        },
        timestamp: new Date().toISOString()
      });
