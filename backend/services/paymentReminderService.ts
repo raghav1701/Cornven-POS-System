@@ -3,45 +3,43 @@ import { emailService } from './emailService';
 import { formatDateToReadable } from '../utils/paymentReminderUtils';
 import { EmailTemplates } from '../templates/emailTemplates';
 import { calculateOverdueBalance, formatOverdueDetails, getCompletedCycleBoundaries } from '../utils/overdueCalculation';
+import { getAESTToday, daysBetweenAEST, toAESTDateOnly, addDaysAEST } from '../utils/aestDateUtils';
 
 const prisma = new PrismaClient();
 
-// Helper function to get 14-day billing cycle boundaries
+// Helper function to get 14-day billing cycle boundaries using AEST
 function getCycleBoundaries(startDate: Date, currentDate: Date): { cycleStart: Date; cycleEnd: Date } {
-  const start = new Date(startDate);
-  const current = new Date(currentDate);
-  
-  // Calculate days since start
-  const daysSinceStart = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  // Calculate days since start using AEST
+  const daysSinceStart = daysBetweenAEST(startDate, currentDate);
   
   // Calculate which 14-day cycle we're in (0-based)
   const cycleNumber = Math.floor(daysSinceStart / 14);
   
-  // Calculate cycle boundaries
-  const cycleStart = new Date(start.getTime() + (cycleNumber * 14 * 24 * 60 * 60 * 1000));
-  const cycleEnd = new Date(start.getTime() + ((cycleNumber + 1) * 14 * 24 * 60 * 60 * 1000));
+  // Calculate cycle boundaries using AEST
+  const cycleStart = addDaysAEST(toAESTDateOnly(startDate), cycleNumber * 14);
+  const cycleEnd = addDaysAEST(toAESTDateOnly(startDate), (cycleNumber + 1) * 14);
   
   return { cycleStart, cycleEnd };
 }
 
-// Date utility functions
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function toUTCDateOnly(d: Date): Date {
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-  );
+function getPreviousCycleBoundaries(startDate: Date, currentDate: Date): { cycleStart: Date; cycleEnd: Date } {
+  // Calculate days since start using AEST
+  const daysSinceStart = daysBetweenAEST(startDate, currentDate);
+  
+  // Calculate which 14-day cycle we're in (0-based)
+  const currentCycleNumber = Math.floor(daysSinceStart / 14);
+  
+  // Get previous cycle (currentCycleNumber - 1)
+  const previousCycleNumber = Math.max(0, currentCycleNumber - 1);
+  
+  // Calculate previous cycle boundaries using AEST
+  const cycleStart = addDaysAEST(toAESTDateOnly(startDate), previousCycleNumber * 14);
+  const cycleEnd = addDaysAEST(toAESTDateOnly(startDate), (previousCycleNumber + 1) * 14);
+  
+  return { cycleStart, cycleEnd };
 }
 
-function addDays(d: Date, n: number): Date {
-  return new Date(d.getTime() + n * MS_PER_DAY);
-}
-
-function daysBetween(a: Date, b: Date): number {
-  const A = toUTCDateOnly(a);
-  const B = toUTCDateOnly(b);
-  return Math.max(0, Math.floor((B.getTime() - A.getTime()) / MS_PER_DAY));
-}
+// Note: All date calculations now use AEST timezone via aestDateUtils
 
 export interface RentalWithRelations {
   id: string;
@@ -153,7 +151,7 @@ export class PaymentReminderService {
     rental: RentalWithRelations
   ): Promise<{ sent: boolean; error?: string }> {
     try {
-      const today = new Date();
+      const today = getAESTToday();
       
       // ═══════════════════════════════════════════════════════════════
       //                    📊 SEVEN DAY REMINDER ANALYSIS
@@ -171,7 +169,7 @@ export class PaymentReminderService {
       console.log('   └─ Total Duration:', duration, 'days');
       
       // ⏰ TIME CALCULATIONS (Following your exact logic)
-      const dayPassed = daysBetween(rental.startDate, today);
+      const dayPassed = daysBetweenAEST(rental.startDate, today);
       const billingCycle = 14;
       const currentCycle = Math.floor(dayPassed / billingCycle) + 1;
       const flag = (currentCycle * billingCycle) - duration;
@@ -230,7 +228,7 @@ export class PaymentReminderService {
         // Calculate balance due using your exact formula
         const totalPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
         const duration = Math.ceil((rental.endDate.getTime() - rental.startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const dayPassed = daysBetween(rental.startDate, today);
+        const dayPassed = daysBetweenAEST(rental.startDate, today);
         const billingCycle = 14;
         const currentCycle = Math.floor(dayPassed / billingCycle) + 1;
         const flag = (currentCycle * billingCycle) - duration;
@@ -269,7 +267,7 @@ export class PaymentReminderService {
     rental: RentalWithRelations
   ): Promise<{ sent: boolean; error?: string }> {
     try {
-      const today = new Date();
+      const today = getAESTToday();
       
       // Get cycle boundaries for 14-day billing cycle
       const { cycleStart, cycleEnd } = getCycleBoundaries(rental.startDate, today);
@@ -297,7 +295,7 @@ export class PaymentReminderService {
         // Calculate balance due using your exact formula
         const totalPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
         const duration = Math.ceil((rental.endDate.getTime() - rental.startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const dayPassed = daysBetween(rental.startDate, today);
+        const dayPassed = daysBetweenAEST(rental.startDate, today);
         const billingCycle = 14;
         const currentCycle = Math.floor(dayPassed / billingCycle) + 1;
         const flag = (currentCycle * billingCycle) - duration;
@@ -338,7 +336,7 @@ export class PaymentReminderService {
     rental: RentalWithRelations
   ): Promise<{ sent: boolean; error?: string }> {
     try {
-      const today = new Date();
+      const today = getAESTToday();
       const totalPaid = rental.payments.reduce((sum, payment) => sum + payment.amount, 0);
       
       // Use new overdue calculation logic for completed cycles only
@@ -411,9 +409,21 @@ export class PaymentReminderService {
     try {
       console.log(`Sending ${reminderType} reminder for rental ${rental.id}, amount: ${amount}, due date: ${dueDate.toISOString()}`);
       
-      // Get current billing cycle boundaries
-      const today = new Date();
-      const { cycleStart, cycleEnd } = getCycleBoundaries(rental.startDate, today);
+      // Get billing cycle boundaries based on reminder type
+      const today = getAESTToday();
+      let cycleStart: Date, cycleEnd: Date;
+      
+      if (reminderType === ReminderType.OVERDUE) {
+        // For overdue reminders, use previous cycle boundaries (when the balance was actually due)
+        const boundaries = getPreviousCycleBoundaries(rental.startDate, today);
+        cycleStart = boundaries.cycleStart;
+        cycleEnd = boundaries.cycleEnd;
+      } else {
+        // For advance reminders, use current cycle boundaries
+        const boundaries = getCycleBoundaries(rental.startDate, today);
+        cycleStart = boundaries.cycleStart;
+        cycleEnd = boundaries.cycleEnd;
+      }
       
       // Get email template data
       const emailData = {
