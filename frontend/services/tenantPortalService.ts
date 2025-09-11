@@ -131,7 +131,12 @@ class TenantPortalService {
       }
       
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    // Handle 204 No Content responses (successful DELETE operations)
+    if (response.status === 204) {
+      return null;
     }
 
     return await response.json();

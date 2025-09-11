@@ -41,8 +41,8 @@ const Navigation = () => {
       if (userPermissions.includes('tenants')) {
         baseItems.push({ name: 'Rentals', href: '/rentals', permission: 'tenants' });
       }
-      if (userPermissions.includes('admin-products')) {
-        baseItems.push({ name: 'Approvals', href: '/admin/products', permission: 'admin-products' });
+      if (userPermissions.includes('pos')) {
+        baseItems.push({ name: 'POS', href: '/pos', permission: 'pos' });
       }
     } else {
       // Show all menu items for other pages
@@ -53,12 +53,7 @@ const Navigation = () => {
       if (userPermissions.includes('tenants')) {
         baseItems.push({ name: 'Tenants', href: '/admin/tenants', permission: 'tenants' });
       }
-      if (userPermissions.includes('admin-products')) {
-        baseItems.push({ name: 'Approvals', href: '/admin/products', permission: 'admin-products' });
-      }
-      if (userPermissions.includes('admin-sales')) {
-        baseItems.push({ name: 'Sales', href: '/admin/sales', permission: 'admin-sales' });
-      }
+
       
       // Tenant items
       if (userPermissions.includes('tenant-dashboard')) {
@@ -81,9 +76,10 @@ const Navigation = () => {
       if (userPermissions.includes('inventory')) {
         baseItems.push({ name: 'Inventory', href: '/inventory', permission: 'inventory' });
       }
-      if (userPermissions.includes('reports')) {
-        baseItems.push({ name: 'Reports', href: '/reports', permission: 'reports' });
+      if (userPermissions.includes('tenants')) {
+        baseItems.push({ name: 'Rentals', href: '/rentals', permission: 'tenants' });
       }
+
     }
     
     return baseItems;
