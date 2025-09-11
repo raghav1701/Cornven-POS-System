@@ -459,6 +459,7 @@ const AdminProducts = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                 <select
+                  aria-label="Filter by category"
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1049,6 +1050,7 @@ const AdminProducts = () => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Barcode Details</h2>
               <button
+                title="Close modal"
                 onClick={closeBarcodeModal}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -1163,6 +1165,7 @@ const AdminProducts = () => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Barcode Details</h2>
               <button
+                title="Close modal"
                 onClick={closeBarcodeModal}
                 className="text-gray-400 hover:text-gray-600"
               >
