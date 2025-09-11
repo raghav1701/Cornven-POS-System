@@ -4,8 +4,7 @@ import { formatDateToReadable } from '../utils/paymentReminderUtils';
 import { EmailTemplates } from '../templates/emailTemplates';
 import { calculateOverdueBalance, formatOverdueDetails, getCompletedCycleBoundaries } from '../utils/overdueCalculation';
 import { getAESTToday, daysBetweenAEST, toAESTDateOnly, addDaysAEST } from '../utils/aestDateUtils';
-
-const prisma = new PrismaClient();
+import { prisma } from '../prisma/prisma';
 
 // Helper function to get 14-day billing cycle boundaries using AEST
 function getCycleBoundaries(startDate: Date, currentDate: Date): { cycleStart: Date; cycleEnd: Date } {
