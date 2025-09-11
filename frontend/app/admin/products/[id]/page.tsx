@@ -6,7 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import Navigation from '@/components/Navigation';
 import { getRolePermissions } from '@/data/mockAuth';
 import { adminProductService, AdminProduct } from '@/services/adminProductService';
-import { ArrowLeft, Package, Calendar, User, Building, Tag, DollarSign, Hash, FileText, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { tenantPortalService } from '@/services/tenantPortalService';
+import { ArrowLeft, Package, Calendar, User, Building, Tag, DollarSign, Hash, FileText, Clock, CheckCircle, XCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
 
 const ProductDetail = () => {
   const { user, isLoading } = useAuth();
@@ -19,6 +20,10 @@ const ProductDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [variantApprovalLoading, setVariantApprovalLoading] = useState<{[key: string]: boolean}>({});
+  const [variantImages, setVariantImages] = useState<{[key: string]: string | null}>({});
+  const [imageLoading, setImageLoading] = useState<{[key: string]: boolean}>({});
+  const [productImages, setProductImages] = useState<string[]>([]);
+  const [productImageLoading, setProductImageLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -49,6 +54,11 @@ const ProductDetail = () => {
       
       if (foundProduct) {
         setProduct(foundProduct);
+        // Load variant images
+        if (foundProduct.variants && foundProduct.variants.length > 0) {
+          loadVariantImages(foundProduct.variants);
+          loadProductImages(foundProduct.variants);
+        }
       } else {
         setError('Product not found');
       }
@@ -59,6 +69,63 @@ const ProductDetail = () => {
       setLoading(false);
     }
   };
+
+  const loadVariantImages = async (variants: any[]) => {
+    for (const variant of variants) {
+      if (variant.id) {
+        fetchVariantImage(variant.id);
+      }
+    }
+  };
+
+  const fetchVariantImage = async (variantId: string) => {
+     try {
+       setImageLoading(prev => ({ ...prev, [variantId]: true }));
+       const imageResult = await tenantPortalService.getVariantImageUrlSafe(variantId);
+       
+       if (imageResult && imageResult.url) {
+         setVariantImages(prev => ({ ...prev, [variantId]: imageResult.url }));
+       } else {
+         setVariantImages(prev => ({ ...prev, [variantId]: null }));
+       }
+     } catch (error) {
+       console.error(`Error fetching image for variant ${variantId}:`, error);
+       setVariantImages(prev => ({ ...prev, [variantId]: null }));
+     } finally {
+       setImageLoading(prev => ({ ...prev, [variantId]: false }));
+     }
+   };
+
+   const loadProductImages = async (variants: any[]) => {
+     try {
+       setProductImageLoading(true);
+       const imagePromises = variants.slice(0, 3).map(async (variant) => {
+         if (variant.id) {
+           const imageResult = await tenantPortalService.getVariantImageUrlSafe(variant.id);
+           return imageResult?.url || null;
+         }
+         return null;
+       });
+       
+       const images = await Promise.all(imagePromises);
+       const validImages = images.filter(img => img !== null) as string[];
+       setProductImages(validImages);
+     } catch (error) {
+       console.error('Error loading product images:', error);
+     } finally {
+       setProductImageLoading(false);
+     }
+   };
+
+   const getTotalStock = () => {
+     if (!product?.variants) return 0;
+     return product.variants.reduce((total, variant) => total + (variant.stock || 0), 0);
+   };
+
+   const getTotalPrice = () => {
+     if (!product?.variants) return 0;
+     return product.variants.reduce((total, variant) => total + (variant.price || 0), 0);
+   };
 
   const handleApproval = async (approve: boolean) => {
     if (!product) return;
@@ -264,27 +331,49 @@ const ProductDetail = () => {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h2>
               
-              {/* Product Image */}
+              {/* Product Images */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Package className="w-4 h-4 inline mr-1" />
-                  Product Image
+                  <ImageIcon className="w-4 h-4 inline mr-1" />
+                  Product Images
                 </label>
-                {product.imageUrl ? (
-                  <img 
-                    src={product.imageUrl} 
-                    alt={product.name}
-                    className="w-32 h-32 object-cover rounded-lg border border-gray-200"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-32 h-32 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                    <Package className="w-16 h-16 text-gray-400" />
-                    <span className="sr-only">No image available</span>
-                  </div>
-                )}
+                <div className="flex items-center space-x-3">
+                  {productImageLoading ? (
+                    <div className="flex space-x-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : productImages.length > 0 ? (
+                    <>
+                      {productImages.slice(0, 2).map((image, index) => (
+                        <div key={index} className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden">
+                          <img 
+                            src={image} 
+                            alt={`Product ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
+                            }}
+                          />
+                        </div>
+                      ))}
+                      {productImages.length > 2 && (
+                        <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <span className="text-xs text-gray-600 font-medium">+{productImages.length - 2} more</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <ImageIcon className="w-6 h-6 text-gray-400" />
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -294,13 +383,6 @@ const ProductDetail = () => {
                     Product Name
                   </label>
                   <p className="text-sm text-gray-900">{product.name}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Hash className="w-4 h-4 inline mr-1" />
-                    SKU
-                  </label>
-                  <p className="text-sm text-gray-900 font-mono">{product.sku}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -314,16 +396,30 @@ const ProductDetail = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <DollarSign className="w-4 h-4 inline mr-1" />
-                    Price
+                    Base Price
                   </label>
                   <p className="text-sm text-gray-900 font-semibold">${(product.price || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <DollarSign className="w-4 h-4 inline mr-1" />
+                    Total Price
+                  </label>
+                  <p className="text-sm text-gray-900 font-semibold">${getTotalPrice().toFixed(2)}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Package className="w-4 h-4 inline mr-1" />
-                    Stock
+                    Base Stock
                   </label>
                   <p className="text-sm text-gray-900">{product.stock} units</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Package className="w-4 h-4 inline mr-1" />
+                    Total Stock
+                  </label>
+                  <p className="text-sm text-gray-900 font-semibold">{getTotalStock()} units</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -351,19 +447,41 @@ const ProductDetail = () => {
                 </h2>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {product.variants.map((variant, index) => (
                         <tr key={variant.id || index}>
+                          <td className="px-4 py-2">
+                            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                              {imageLoading[variant.id] ? (
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                              ) : variantImages[variant.id] ? (
+                                <img 
+                                  src={variantImages[variant.id]!} 
+                                  alt={`${variant.color} ${variant.size}`}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    target.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`flex items-center justify-center w-full h-full ${variantImages[variant.id] ? 'hidden' : ''}`}>
+                                <ImageIcon className="w-6 h-6 text-gray-400" />
+                              </div>
+                            </div>
+                          </td>
                           <td className="px-4 py-2 text-sm text-gray-900">{variant.color}</td>
                           <td className="px-4 py-2 text-sm text-gray-900">{variant.size}</td>
                           <td className="px-4 py-2 text-sm font-semibold text-green-600">${variant.price}</td>

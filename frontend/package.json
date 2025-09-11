@@ -12,6 +12,7 @@
   "dependencies": {
     "@types/three": "^0.179.0",
     "@types/uuid": "^10.0.0",
+    "@zxing/library": "^0.21.3",
     "lucide-react": "^0.536.0",
     "next": "^14.2.32",
     "node-fetch": "^3.3.2",
