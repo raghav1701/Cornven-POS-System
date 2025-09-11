@@ -207,6 +207,9 @@ export default function AddProductPage() {
                   Product Name *
                 </label>
                 <input
+                  aria-label="Product Name"
+                  placeholder="Enter product name"
+                  title="Product Name Input"
                   type="text"
                   name="name"
                   value={formData.name}
@@ -222,6 +225,8 @@ export default function AddProductPage() {
                   Category *
                 </label>
                 <select
+                  title="Product Category"
+                  aria-label="Product Category"
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
@@ -245,6 +250,9 @@ export default function AddProductPage() {
                 Description *
               </label>
               <textarea
+                title="Product Description"
+                placeholder="Enter product description"
+                aria-label="Product Description"
                 name="description"
                 value={formData.description}
                 onChange={handleInputChange}
@@ -321,6 +329,7 @@ export default function AddProductPage() {
                     <h3 className="text-lg font-medium text-gray-900">Variant {index + 1}</h3>
                     {formData.variants.length > 1 && (
                       <button
+                        title="Remove variant"
                         type="button"
                         onClick={() => removeVariant(index)}
                         className="text-red-600 hover:text-red-800"
@@ -336,6 +345,9 @@ export default function AddProductPage() {
                         Color *
                       </label>
                       <input
+                        title="Product Variant Color"
+                        placeholder="Enter color (e.g. Red, Blue)"
+                        aria-label="Product Variant Color"
                         type="text"
                         value={variant.color}
                         onChange={(e) => handleVariantChange(index, 'color', e.target.value)}
@@ -349,6 +361,9 @@ export default function AddProductPage() {
                         Size *
                       </label>
                       <input
+                        title="Product Variant Size"
+                        placeholder="Enter size (e.g. S, M, L, XL)"
+                        aria-label="Product Variant Size"
                         type="text"
                         value={variant.size}
                         onChange={(e) => handleVariantChange(index, 'size', e.target.value)}
@@ -362,6 +377,9 @@ export default function AddProductPage() {
                         Price *
                       </label>
                       <input
+                        title="Product Variant Price"
+                        placeholder="Enter price (e.g. 29.99)"
+                        aria-label="Product Variant Price"
                         type="number"
                         step="0.01"
                         min="0"
@@ -377,6 +395,9 @@ export default function AddProductPage() {
                         Stock *
                       </label>
                       <input
+                        title="Product Variant Stock"
+                        placeholder="Enter stock quantity"
+                        aria-label="Product Variant Stock"
                         type="number"
                         min="0"
                         value={variant.stock}

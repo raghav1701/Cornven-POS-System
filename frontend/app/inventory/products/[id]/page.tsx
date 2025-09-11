@@ -224,12 +224,10 @@ export default function TenantProductsPage() {
                         switch (status) {
                           case 'ACTIVE':
                             return 'bg-green-100 text-green-800';
-                          case 'INACTIVE':
-                            return 'bg-gray-100 text-gray-800';
                           case 'EXPIRED':
                             return 'bg-red-100 text-red-800';
-                          case 'PENDING':
-                            return 'bg-yellow-100 text-yellow-800';
+                          case 'UPCOMING':
+                            return 'bg-blue-100 text-blue-800';
                           default:
                             return 'bg-gray-100 text-gray-800';
                         }
@@ -337,22 +335,19 @@ export default function TenantProductsPage() {
                   <th className="w-1/4 px-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Product
                   </th>
-                  <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SKU
-                  </th>
                   <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
                   <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Price
                   </th>
-                  <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Stock
                   </th>
-                  <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-36 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -364,7 +359,7 @@ export default function TenantProductsPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                       No products found
                     </td>
                   </tr>
@@ -383,9 +378,6 @@ export default function TenantProductsPage() {
                           <div className="text-sm font-medium text-gray-900 truncate">{product.name}</div>
                           {/* <div className="text-sm text-gray-500 truncate">{product.description}</div> */}
                         </div>
-                      </td>
-                      <td className="w-24 px-6 py-4 text-sm font-mono text-gray-900 truncate">
-                        {product.sku}
                       </td>
                       <td className="w-32 px-6 py-4 text-sm text-gray-900 truncate">
                         {product.category}
@@ -495,10 +487,10 @@ export default function TenantProductsPage() {
               <div className="p-6">
                 {/* Basic Product Information */}
                 <div className="mb-6">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-6">
                     <div className="flex items-start space-x-4 flex-1">
                       {/* Product Image */}
-                      {(selectedProduct as any).imageUrl ? (
+                      {/* {(selectedProduct as any).imageUrl ? (
                         <img 
                           src={(selectedProduct as any).imageUrl} 
                           alt={selectedProduct.name}
@@ -511,7 +503,7 @@ export default function TenantProductsPage() {
                         <div className="w-24 h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center flex-shrink-0">
                           <Package className="w-12 h-12 text-gray-400" />
                         </div>
-                      )}
+                      )} */}
                       
                       {/* Product Details */}
                       <div className="flex-1 min-w-0">
@@ -524,27 +516,28 @@ export default function TenantProductsPage() {
                     </span>
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="text-sm text-gray-500">SKU</div>
-                      <div className="font-mono font-medium">{selectedProduct.sku}</div>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-500">Category</div>
                       <div className="font-medium">{selectedProduct.category}</div>
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="text-sm text-gray-500">Price</div>
-                      <div className="font-semibold text-green-600">${selectedProduct.price}</div>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-500">Stock</div>
                       <div className={`font-medium ${
-                        selectedProduct.stock === 0 ? 'text-red-600' :
-                        selectedProduct.stock <= 5 ? 'text-yellow-600' :
-                        'text-gray-900'
+                        (() => {
+                          const totalStock = selectedProduct.variants && selectedProduct.variants.length > 0 
+                            ? selectedProduct.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+                            : (selectedProduct.stock || 0);
+                          return totalStock === 0 ? 'text-red-600' :
+                                 totalStock <= 5 ? 'text-yellow-600' :
+                                 'text-gray-900';
+                        })()
                       }`}>
-                        {selectedProduct.stock}
+                        {
+                          selectedProduct.variants && selectedProduct.variants.length > 0 
+                            ? selectedProduct.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+                            : (selectedProduct.stock || 0)
+                        }
                       </div>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
@@ -552,11 +545,12 @@ export default function TenantProductsPage() {
                       <div className="font-bold text-blue-700">
                         ${
                           (() => {
-                            const baseValue = selectedProduct.price * selectedProduct.stock;
-                            const variantValue = selectedProduct.variants?.reduce((sum, variant) => 
-                              sum + (variant.price * variant.stock), 0
-                            ) || 0;
-                            return (baseValue + variantValue).toFixed(2);
+                            if (selectedProduct.variants && selectedProduct.variants.length > 0) {
+                              return selectedProduct.variants.reduce((sum, variant) => 
+                                sum + ((variant.price || 0) * (variant.stock || 0)), 0).toFixed(2);
+                            } else {
+                              return ((selectedProduct.price || 0) * (selectedProduct.stock || 0)).toFixed(2);
+                            }
                           })()
                         }
                       </div>
@@ -577,7 +571,6 @@ export default function TenantProductsPage() {
                           <tr>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Color</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -589,7 +582,6 @@ export default function TenantProductsPage() {
                             <tr key={variant.id}>
                               <td className="px-4 py-2 text-sm text-gray-900">{variant.color}</td>
                               <td className="px-4 py-2 text-sm text-gray-900">{variant.size}</td>
-                              <td className="px-4 py-2 text-sm font-mono text-gray-900">{variant.sku}</td>
                               <td className="px-4 py-2 text-sm font-semibold text-green-600">${variant.price}</td>
                               <td className="px-4 py-2 text-sm text-gray-900">{variant.stock}</td>
                               <td className="px-4 py-2">

@@ -223,7 +223,7 @@ const ProductDetail = () => {
             <h3 className="mt-2 text-sm font-medium text-gray-900">Error</h3>
             <p className="mt-1 text-sm text-gray-500">{error}</p>
             <button
-              onClick={() => router.push('/admin/products')}
+              onClick={() => router.push('/inventory')}
               className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -245,7 +245,7 @@ const ProductDetail = () => {
             <h3 className="mt-2 text-sm font-medium text-gray-900">Product not found</h3>
             <p className="mt-1 text-sm text-gray-500">The product you're looking for doesn't exist.</p>
             <button
-              onClick={() => router.push('/admin/products')}
+              onClick={() => router.push('/inventory')}
               className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -264,7 +264,7 @@ const ProductDetail = () => {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => router.push('/admin/products')}
+            onClick={() => router.push('/inventory')}
             className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
