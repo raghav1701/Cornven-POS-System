@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { adminProductService, AdminProduct, ProductVariant } from '../../services/adminProductService';
 import { tenantPortalService } from '../../services/tenantPortalService';
+import { useAuth } from '../../contexts/AuthContext';
 import { Search, ShoppingCart, Trash2, Plus, Minus, Receipt, Printer, Scan, X } from 'lucide-react';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import ProductConfirmationModal from '../../components/ProductConfirmationModal';
@@ -30,6 +31,7 @@ interface Invoice {
 }
 
 const POS: React.FC = () => {
+  const { user } = useAuth();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,6 +56,7 @@ const POS: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string>('');
   const [scanCooldown, setScanCooldown] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const lookupInProgressRef = useRef(false);
   const cooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -63,8 +66,21 @@ const POS: React.FC = () => {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const fetchedProducts = await adminProductService.getAllProducts();
-      console.log('Fetched products:', fetchedProducts);
+      let fetchedProducts: AdminProduct[];
+      
+      console.log('Current user in POS:', user);
+      console.log('User role:', user?.role);
+      console.log('User tenantId:', user?.tenantId);
+      
+      // If user is a tenant, load only their products
+      if (user?.role === 'tenant' && user?.tenantId) {
+        fetchedProducts = await adminProductService.getProducts(user.tenantId);
+        console.log('Fetched tenant products:', fetchedProducts);
+      } else {
+        // For admin/other roles, load all products
+        fetchedProducts = await adminProductService.getAllProducts();
+        console.log('Fetched all products:', fetchedProducts);
+      }
       
       // Filter products that have at least one variant
       const availableProducts = fetchedProducts.filter((product: AdminProduct) =>
@@ -323,11 +339,14 @@ const POS: React.FC = () => {
   // useEffect hooks
   useEffect(() => {
     setIsClient(true);
+  }, []);
+
+  useEffect(() => {
     // Ensure this only runs on client side to prevent hydration mismatch
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && user && isClient) {
       loadProducts();
     }
-  }, []);
+  }, [user, isClient]);
   
   // Cleanup effect for timeouts
    useEffect(() => {
@@ -372,23 +391,139 @@ const POS: React.FC = () => {
   const tax = subtotal * 0.1; // 10% tax
   const total = subtotal + tax;
 
-  // Generate invoice
-  const generateInvoice = () => {
+  // Generate unique idempotency key
+  const generateIdempotencyKey = () => {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const timeStr = now.getTime().toString().slice(-4); // Last 4 digits of timestamp
+    return `TERM1-${dateStr}-${timeStr}`;
+  };
+
+  // Convert payment method to API format
+  const getPaymentMethodForAPI = (method: string) => {
+    switch (method.toLowerCase()) {
+      case 'cash':
+        return 'CASH';
+      case 'card':
+        return 'CARD';
+      case 'upi':
+        return 'UPI';
+      default:
+        return 'CASH';
+    }
+  };
+
+  // Checkout with API integration
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
-    
-    const invoice: Invoice = {
-      id: `INV-${Date.now()}`,
-      items: [...cart],
-      subtotal,
-      tax,
-      total,
-      timestamp: new Date(),
-      paymentMethod
-    };
-    
-    setCurrentInvoice(invoice);
-    setShowInvoice(true);
-    setCart([]); // Clear cart after generating invoice
+
+    setIsProcessingPayment(true);
+
+    try {
+      console.log('Checkout - Current user:', user);
+      console.log('Checkout - Cart items:', cart);
+      
+      // Calculate values in cents
+      const subtotalCents = Math.round(subtotal * 100);
+      const taxCents = Math.round(tax * 100);
+      const totalCents = Math.round(total * 100);
+
+      // Get the tenant ID from the first product in cart (all items should be from same tenant)
+      const firstCartItem = cart[0];
+      const product = products.find(p => p.id === firstCartItem.productId);
+      const tenantId = product?.tenantId || user?.tenantId || "";
+      
+      console.log('Using tenant ID from product:', tenantId);
+      console.log('Product tenant info:', product?.tenant);
+
+      // Prepare checkout data
+      const checkoutData = {
+        idempotencyKey: generateIdempotencyKey(),
+        tenantId: tenantId, // Use tenant ID from product 
+        cashierUserId: user?.id || "", // Use current user's 
+        currency: "AUD",
+        items: cart.map(item => ({
+          variantId: item.variantId,
+          quantity: item.quantity,
+          unitPriceCents: Math.round(item.price * 100),
+          discountCents: 0,
+          taxCents: Math.round((item.price * item.quantity * 0.1) * 100) // 10% tax per item
+        })),
+        payments: [
+          {
+            method: getPaymentMethodForAPI(paymentMethod),
+            amountCents: totalCents
+          }
+        ]
+      };
+      
+      console.log('Checkout data being sent:', checkoutData);
+
+      // Make API call
+       const response = await fetch('https://cornven-pos-system.vercel.app/pos/checkout', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Accept': 'application/json',
+           'Origin': 'http://localhost:3001'
+         },
+         mode: 'cors',
+         credentials: 'include',
+         body: JSON.stringify(checkoutData)
+       });
+
+      if (!response.ok) {
+        throw new Error(`Checkout failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Checkout successful:', result);
+
+      // Generate local invoice for display
+      const invoice: Invoice = {
+        id: result.id || `INV-${Date.now()}`,
+        items: [...cart],
+        subtotal,
+        tax,
+        total,
+        timestamp: new Date(),
+        paymentMethod
+      };
+
+      setCurrentInvoice(invoice);
+      setShowInvoice(true);
+      setCart([]); // Clear cart after successful checkout
+
+    } catch (error) {
+       console.error('Checkout API error:', error);
+       
+       // Fallback to local invoice generation if API fails
+       console.log('Falling back to local invoice generation');
+       
+       const invoice: Invoice = {
+         id: `INV-${Date.now()}`,
+         items: [...cart],
+         subtotal,
+         tax,
+         total,
+         timestamp: new Date(),
+         paymentMethod
+       };
+
+       setCurrentInvoice(invoice);
+       setShowInvoice(true);
+       setCart([]);
+       
+       // Show user-friendly message
+       alert('Checkout completed locally. API connection unavailable.');
+     } finally {
+       setIsProcessingPayment(false);
+     }
+  };
+
+  // Generate invoice (fallback method)
+  const generateInvoice = async () => {
+    await handleCheckout();
   };
 
   // Print invoice
@@ -489,10 +624,24 @@ const POS: React.FC = () => {
                 
                 <button
                   onClick={generateInvoice}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 flex items-center justify-center"
+                  disabled={isProcessingPayment}
+                  className={`w-full py-3 rounded-lg font-medium flex items-center justify-center transition-colors ${
+                    isProcessingPayment 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } text-white`}
                 >
-                  <Receipt className="mr-2" size={20} />
-                  Generate Invoice
+                  {isProcessingPayment ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Receipt className="mr-2" size={20} />
+                      Pay Now
+                    </>
+                  )}
                 </button>
               </div>
             </div>
