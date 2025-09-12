@@ -439,7 +439,7 @@ const POS: React.FC = () => {
       // Prepare checkout data
       const checkoutData = {
         idempotencyKey: generateIdempotencyKey(),
-        tenantId: tenantId, // Use tenant ID from product da
+        tenantId: tenantId, // Use tenant ID from product 
         cashierUserId: user?.id || "", // Use current user's 
         currency: "AUD",
         items: cart.map(item => ({
