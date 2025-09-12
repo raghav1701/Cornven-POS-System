@@ -172,25 +172,59 @@ export default function InventoryPage() {
       return; // Already loaded or loading
     }
 
-    console.log("Fetching image for variant:", variantId);
-    setVariantImageLoading((prev) => ({ ...prev, [variantId]: true }));
+    console.log('Fetching image for variant:', variantId);
+    setVariantImageLoading(prev => ({ ...prev, [variantId]: true }));
     try {
-      const response = await tenantPortalService.getVariantImageUrlSafe(
-        variantId
-      );
-      console.log("Variant image response:", response);
+      const response = await tenantPortalService.getVariantImageUrlSafe(variantId);
+      console.log('Variant image response:', response);
       if (response && response.url) {
-        setVariantImages((prev) => ({ ...prev, [variantId]: response.url }));
+        setVariantImages(prev => ({ ...prev, [variantId]: response.url }));
       } else {
         console.warn(`No image URL available for variant ${variantId}`);
-        setVariantImages((prev) => ({ ...prev, [variantId]: "No image" }));
+        setVariantImages(prev => ({ ...prev, [variantId]: 'No image' }));
       }
     } catch (error) {
-      console.error("Error fetching variant image:", error);
+      console.error('Error fetching variant image:', error);
       // Set a placeholder or error state
-      setVariantImages((prev) => ({ ...prev, [variantId]: "" }));
+      setVariantImages(prev => ({ ...prev, [variantId]: '' }));
     } finally {
-      setVariantImageLoading((prev) => ({ ...prev, [variantId]: false }));
+      setVariantImageLoading(prev => ({ ...prev, [variantId]: false }));
+    }
+  };
+
+  const fetchProductImage = async (product: AdminProduct) => {
+    const productId = product.id;
+    if (productImages[productId] || productImageLoading[productId]) {
+      return; // Already loaded or loading
+    }
+
+    console.log("Fetching image for product:", productId);
+    setProductImageLoading((prev) => ({ ...prev, [productId]: true }));
+    try {
+      // Use the first variant's image as the product image
+      if (product.variants && product.variants.length > 0) {
+        const firstVariantId = product.variants[0].id;
+        console.log("Using first variant ID for product image:", firstVariantId);
+        const response = await tenantPortalService.getVariantImageUrlSafe(
+          firstVariantId
+        );
+        console.log("Product image response:", response);
+        if (response && response.url) {
+          setProductImages((prev) => ({ ...prev, [productId]: response.url }));
+        } else {
+          console.warn(`No image URL available for product ${productId}`);
+          setProductImages((prev) => ({ ...prev, [productId]: "No image" }));
+        }
+      } else {
+        console.warn(`No variants available for product ${productId}`);
+        setProductImages((prev) => ({ ...prev, [productId]: "No image" }));
+      }
+    } catch (error) {
+      console.error("Error fetching product image:", error);
+      // Set a placeholder or error state
+      setProductImages((prev) => ({ ...prev, [productId]: "" }));
+    } finally {
+      setProductImageLoading((prev) => ({ ...prev, [productId]: false }));
     }
   };
   const router = useRouter();
@@ -209,16 +243,20 @@ export default function InventoryPage() {
 
   // Fetch variant images when modal opens
   useEffect(() => {
-    if (
-      showVariantModal &&
-      selectedProductForModal &&
-      selectedProductForModal.variants
-    ) {
-      selectedProductForModal.variants.forEach((variant) => {
+    if (showVariantModal && selectedProductForModal && selectedProductForModal.variants) {
+      selectedProductForModal.variants.forEach(variant => {
         fetchVariantImage(variant.id);
       });
     }
   }, [showVariantModal, selectedProductForModal]);
+
+  // Fetch product image when product details modal opens
+  useEffect(() => {
+    if (showProductDetails && selectedProduct) {
+      fetchProductImage(selectedProduct);
+    }
+  }, [showProductDetails, selectedProduct]);
+
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [selectedVariantForBarcode, setSelectedVariantForBarcode] =
     useState<any>(null);
@@ -232,6 +270,12 @@ export default function InventoryPage() {
     {}
   );
   const [variantImageLoading, setVariantImageLoading] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [productImages, setProductImages] = useState<{ [key: string]: string }>(
+    {}
+  );
+  const [productImageLoading, setProductImageLoading] = useState<{
     [key: string]: boolean;
   }>({});
 
@@ -418,6 +462,7 @@ export default function InventoryPage() {
       category: apiProduct.category,
       sku: apiProduct.sku,
       barcode: apiProduct.sku,
+      imageUrl: apiProduct.imageUrl,
       status: (apiProduct.status?.toLowerCase() || "pending") as
         | "active"
         | "pending"
@@ -1142,8 +1187,8 @@ export default function InventoryPage() {
                         const variants = apiProduct?.variants || [];
 
                         const handleCardClick = () => {
-                          setSelectedProductForModal(apiProduct || null);
-                          setShowVariantModal(true);
+                          setSelectedProduct(apiProduct || null);
+                          setShowProductDetails(true);
                         };
 
                         return (
@@ -1474,7 +1519,9 @@ export default function InventoryPage() {
                       <select
                         aria-label="Filter by approval status"
                         value={approvalStatusFilter}
-                        onChange={(e) => setApprovalStatusFilter(e.target.value)}
+                        onChange={(e) =>
+                          setApprovalStatusFilter(e.target.value)
+                        }
                         className="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       >
                         <option value="all">All Status</option>
@@ -1502,38 +1549,38 @@ export default function InventoryPage() {
                   {/* Desktop Table View */}
                   <div className="hidden md:block overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Image
                         </th> */}
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Product
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Category
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Variants
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Tenant
-                        </th>
-                        {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Product
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Category
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Variants
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tenant
+                          </th>
+                          {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th> */}
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredAdminProducts.map((product) => {
-                        const variants = product.variants || [];
-                        return (
-                          <tr key={product.id}>
-                            {/* Image */}
-                            {/* <td className="px-6 py-4 whitespace-nowrap">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredAdminProducts.map((product) => {
+                          const variants = product.variants || [];
+                          return (
+                            <tr key={product.id}>
+                              {/* Image */}
+                              {/* <td className="px-6 py-4 whitespace-nowrap">
                               <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
                                 {product.imageUrl ? (
                                   <Image
@@ -1548,143 +1595,155 @@ export default function InventoryPage() {
                                 )}
                               </div>
                             </td> */}
-                            {/* Product */}
-                            <td className="px-6 py-4">
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {product.name}
+                              {/* Product */}
+                              <td className="px-6 py-4">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {product.name}
+                                  </div>
                                 </div>
-                                
-                              </div>
-                            </td>
-                            {/* Category */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {product.category || "Uncategorized"}
-                              </span>
-                            </td>
-                            
-                            {/* Variants */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {variants && variants.length > 0 ? (
-                                  <div>
-                                    <div className="font-medium mb-2">
-                                      {variants.length} variant(s)
-                                    </div>
-                                    <div className="space-y-1">
-                                      {variants
-                                        .slice(0, 2)
-                                        .map((variant, idx) => (
-                                          <div
-                                            key={idx}
-                                            className="flex items-center space-x-2"
-                                          >
-                                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                                              {variant.color}
-                                            </span>
-                                            {/* <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                              </td>
+                              {/* Category */}
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {product.category || "Uncategorized"}
+                                </span>
+                              </td>
+
+                              {/* Variants */}
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">
+                                  {variants && variants.length > 0 ? (
+                                    <div>
+                                      <div className="font-medium mb-2">
+                                        {variants.length} variant(s)
+                                      </div>
+                                      <div className="space-y-1">
+                                        {variants
+                                          .slice(0, 2)
+                                          .map((variant, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="flex items-center space-x-2"
+                                            >
+                                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                                {variant.color}
+                                              </span>
+                                              {/* <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
                                               {variant.size}
                                             </span> */}
-                                            <span className="text-xs font-semibold text-green-600">
-                                              ${(variant.price || 0).toFixed(2)}
-                                            </span>
-                                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                                              variant.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                                              variant.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                                              'bg-yellow-100 text-yellow-800'
-                                            }`}>
-                                              {variant.status === 'APPROVED' ? 'Approved' :
-                                               variant.status === 'REJECTED' ? 'Rejected' : 'Pending'}
-                                            </span>
-                                            {/* <span className="text-xs text-gray-500">
+                                              <span className="text-xs font-semibold text-green-600">
+                                                $
+                                                {(variant.price || 0).toFixed(
+                                                  2
+                                                )}
+                                              </span>
+                                              <span
+                                                className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                                                  variant.status === "APPROVED"
+                                                    ? "bg-green-100 text-green-800"
+                                                    : variant.status ===
+                                                      "REJECTED"
+                                                    ? "bg-red-100 text-red-800"
+                                                    : "bg-yellow-100 text-yellow-800"
+                                                }`}
+                                              >
+                                                {variant.status === "APPROVED"
+                                                  ? "Approved"
+                                                  : variant.status ===
+                                                    "REJECTED"
+                                                  ? "Rejected"
+                                                  : "Pending"}
+                                              </span>
+                                              {/* <span className="text-xs text-gray-500">
                                               ({variant.stock || 0} units)
                                             </span> */}
+                                            </div>
+                                          ))}
+                                        {variants.length > 2 && (
+                                          <div className="text-blue-600 text-xs font-medium">
+                                            +{variants.length - 2} more variants
                                           </div>
-                                        ))}
-                                      {variants.length > 2 && (
-                                        <div className="text-blue-600 text-xs font-medium">
-                                          +{variants.length - 2} more variants
+                                        )}
+                                      </div>
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <div className="text-xs text-gray-600">
+                                          <span className="font-medium">
+                                            Total Stock:{" "}
+                                          </span>
+                                          <span className="font-semibold text-gray-900">
+                                            {variants.reduce(
+                                              (sum, v) => sum + (v.stock || 0),
+                                              0
+                                            )}{" "}
+                                            units
+                                          </span>
                                         </div>
-                                      )}
+                                        <div className="text-xs text-gray-600">
+                                          <span className="font-medium">
+                                            Total Value:{" "}
+                                          </span>
+                                          <span className="font-semibold text-green-600">
+                                            $
+                                            {variants
+                                              .reduce(
+                                                (sum, v) =>
+                                                  sum +
+                                                  (v.price || 0) *
+                                                    (v.stock || 0),
+                                                0
+                                              )
+                                              .toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className="mt-2 pt-2 border-t border-gray-100">
-                                      <div className="text-xs text-gray-600">
-                                        <span className="font-medium">
-                                          Total Stock:{" "}
-                                        </span>
-                                        <span className="font-semibold text-gray-900">
-                                          {variants.reduce(
-                                            (sum, v) => sum + (v.stock || 0),
-                                            0
-                                          )}{" "}
-                                          units
-                                        </span>
+                                  ) : (
+                                    <div>
+                                      <div className="font-medium mb-1">
+                                        Base Product
                                       </div>
                                       <div className="text-xs text-gray-600">
+                                        <span className="font-semibold text-green-600">
+                                          ${(product.price || 0).toFixed(2)}
+                                        </span>
+                                        <span className="text-gray-500 ml-2">
+                                          ({product.stock || 0} units)
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-gray-600 mt-1">
                                         <span className="font-medium">
                                           Total Value:{" "}
                                         </span>
                                         <span className="font-semibold text-green-600">
                                           $
-                                          {variants
-                                            .reduce(
-                                              (sum, v) =>
-                                                sum +
-                                                (v.price || 0) * (v.stock || 0),
-                                              0
-                                            )
-                                            .toFixed(2)}
+                                          {(
+                                            (product.price || 0) *
+                                            (product.stock || 0)
+                                          ).toFixed(2)}
                                         </span>
                                       </div>
                                     </div>
+                                  )}
+                                </div>
+                              </td>
+                              {/* Tenant */}
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span className="text-xs font-medium text-blue-600">
+                                      {product.tenant?.businessName
+                                        ?.charAt(0)
+                                        ?.toUpperCase() || "T"}
+                                    </span>
                                   </div>
-                                ) : (
-                                  <div>
-                                    <div className="font-medium mb-1">
-                                      Base Product
-                                    </div>
-                                    <div className="text-xs text-gray-600">
-                                      <span className="font-semibold text-green-600">
-                                        ${(product.price || 0).toFixed(2)}
-                                      </span>
-                                      <span className="text-gray-500 ml-2">
-                                        ({product.stock || 0} units)
-                                      </span>
-                                    </div>
-                                    <div className="text-xs text-gray-600 mt-1">
-                                      <span className="font-medium">
-                                        Total Value:{" "}
-                                      </span>
-                                      <span className="font-semibold text-green-600">
-                                        $
-                                        {(
-                                          (product.price || 0) *
-                                          (product.stock || 0)
-                                        ).toFixed(2)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            {/* Tenant */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <span className="text-xs font-medium text-blue-600">
-                                    {product.tenant?.businessName
-                                      ?.charAt(0)
-                                      ?.toUpperCase() || "T"}
+                                  <span className="text-sm text-gray-900">
+                                    {product.tenant?.businessName || "Unknown"}
                                   </span>
                                 </div>
-                                <span className="text-sm text-gray-900">
-                                  {product.tenant?.businessName || "Unknown"}
-                                </span>
-                              </div>
-                            </td>
-                            {/* Status */}
-                            {/* <td className="px-6 py-4 whitespace-nowrap">
+                              </td>
+                              {/* Status */}
+                              {/* <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
                                 <span
                                   className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1743,36 +1802,40 @@ export default function InventoryPage() {
                                 )}
                               </div>
                             </td> */}
-                            {/* Actions */}
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex gap-2">
-                                {product.status === "PENDING" && (
-                                  <>
-                                    <button
-                                      onClick={() =>
-                                        handleApproval(product.id, true)
-                                      }
-                                      disabled={approvalLoading === product.id}
-                                      className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                                    >
-                                      {approvalLoading === product.id
-                                        ? "Loading..."
-                                        : "Approve"}
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleApproval(product.id, false)
-                                      }
-                                      disabled={approvalLoading === product.id}
-                                      className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                                    >
-                                      {approvalLoading === product.id
-                                        ? "Loading..."
-                                        : "Reject"}
-                                    </button>
-                                  </>
-                                )}
-                                {/* <button
+                              {/* Actions */}
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex gap-2">
+                                  {product.status === "PENDING" && (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          handleApproval(product.id, true)
+                                        }
+                                        disabled={
+                                          approvalLoading === product.id
+                                        }
+                                        className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                                      >
+                                        {approvalLoading === product.id
+                                          ? "Loading..."
+                                          : "Approve"}
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleApproval(product.id, false)
+                                        }
+                                        disabled={
+                                          approvalLoading === product.id
+                                        }
+                                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                                      >
+                                        {approvalLoading === product.id
+                                          ? "Loading..."
+                                          : "Reject"}
+                                      </button>
+                                    </>
+                                  )}
+                                  {/* <button
                                   onClick={() => {
                                     setSelectedProduct(product);
                                     setShowBarcodeModal(true);
@@ -1782,260 +1845,274 @@ export default function InventoryPage() {
                                 >
                                   <QrCode className="w-4 h-4" />
                                 </button> */}
-                                <button
-                                  onClick={() => router.push(`/admin/products/${product.id}`)}
-                                  className="text-purple-600 hover:text-purple-900"
-                                  title="Take Action - View Product Details"
-                                >
-                                  Take Action
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
+                                  <button
+                                    onClick={() =>
+                                      router.push(
+                                        `/admin/products/${product.id}`
+                                      )
+                                    }
+                                    className="text-purple-600 hover:text-purple-900"
+                                    title="Take Action - View Product Details"
+                                  >
+                                    Take Action
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
                     </table>
                   </div>
 
                   {/* Mobile Card View */}
                   <div className="md:hidden space-y-4">
-                  {filteredAdminProducts.map((product) => {
-                    const variants = product.variants || [];
-                    return (
-                      <div
-                        key={product.id}
-                        className="bg-white border border-gray-200 rounded-lg p-4"
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex-1">
-                            <h3 className="text-lg font-medium text-gray-900 mb-1">
-                              {product.name}
-                            </h3>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  product.status === "APPROVED"
-                                    ? "bg-green-100 text-green-800"
+                    {filteredAdminProducts.map((product) => {
+                      const variants = product.variants || [];
+                      return (
+                        <div
+                          key={product.id}
+                          className="bg-white border border-gray-200 rounded-lg p-4"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-medium text-gray-900 mb-1">
+                                {product.name}
+                              </h3>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span
+                                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    product.status === "APPROVED"
+                                      ? "bg-green-100 text-green-800"
+                                      : product.status === "REJECTED"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-yellow-100 text-yellow-800"
+                                  }`}
+                                >
+                                  {product.status === "APPROVED"
+                                    ? "Approved"
                                     : product.status === "REJECTED"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {product.status === "APPROVED"
-                                  ? "Approved"
-                                  : product.status === "REJECTED"
-                                  ? "Rejected"
-                                  : "Pending"}
-                              </span>
-                              {product.category && (
-                                <span className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                                  {product.category}
+                                    ? "Rejected"
+                                    : "Pending"}
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                          {product.imageUrl && (
-                            <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden ml-3">
-                              <Image
-                                src={product.imageUrl}
-                                alt={product.name}
-                                width={64}
-                                height={64}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-3 mb-3">
-                          <p className="text-sm text-gray-500">
-                            SKU: {product.sku}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            Tenant: {product.tenant?.businessName}
-                          </p>
-
-                          {/* Enhanced Variants Display */}
-                          {variants.length > 0 ? (
-                            <div className="mt-3">
-                              <div className="font-medium text-sm text-gray-900 mb-2">
-                                {variants.length} variant(s)
-                              </div>
-                              <div className="space-y-2">
-                                {variants.slice(0, 2).map((variant, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex flex-col gap-1 p-2 bg-gray-50 rounded"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      {variant.color && (
-                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                                          {variant.color}
-                                        </span>
-                                      )}
-                                      {variant.size && (
-                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
-                                          {variant.size}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-green-600">
-                                      ${(variant.price || 0).toFixed(2)}
-                                    </span>
-                                    <span className="text-xs text-gray-500">
-                                      ({variant.stock || 0} units)
-                                    </span>
-                                  </div>
-                                  <div className="mt-1">
-                                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                                      variant.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                                      variant.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                                      'bg-yellow-100 text-yellow-800'
-                                    }`}>
-                                      {variant.status === 'APPROVED' ? 'Approved' :
-                                       variant.status === 'REJECTED' ? 'Rejected' : 'Pending'}
-                                    </span>
-                                  </div>
-                                  </div>
-                                ))}
-                                {variants.length > 2 && (
-                                  <div className="text-blue-600 text-xs font-medium">
-                                    +{variants.length - 2} more variants
-                                  </div>
+                                {product.category && (
+                                  <span className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                                    {product.category}
+                                  </span>
                                 )}
                               </div>
-                              <div className="mt-3 pt-2 border-t border-gray-200">
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <div className="text-gray-600">
-                                    <span className="font-medium">
-                                      Total Stock:{" "}
+                            </div>
+                            {product.imageUrl && (
+                              <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden ml-3">
+                                <Image
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  width={64}
+                                  height={64}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 mb-3">
+                            {/* <p className="text-sm text-gray-500">
+                              SKU: {product.sku}
+                            </p> */}
+                            <p className="text-sm text-gray-500">
+                              Tenant: {product.tenant?.businessName}
+                            </p>
+
+                            {/* Enhanced Variants Display */}
+                            {variants.length > 0 ? (
+                              <div className="mt-3">
+                                <div className="font-medium text-sm text-gray-900 mb-2">
+                                  {variants.length} variant(s)
+                                </div>
+                                <div className="space-y-2">
+                                  {variants.slice(0, 2).map((variant, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex flex-col gap-1 p-2 bg-gray-50 rounded"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {variant.color && (
+                                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                            {variant.color}
+                                          </span>
+                                        )}
+                                        {variant.size && (
+                                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                                            {variant.size}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-green-600">
+                                          ${(variant.price || 0).toFixed(2)}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          ({variant.stock || 0} units)
+                                        </span>
+                                      </div>
+                                      <div className="mt-1">
+                                        <span
+                                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                                            variant.status === "APPROVED"
+                                              ? "bg-green-100 text-green-800"
+                                              : variant.status === "REJECTED"
+                                              ? "bg-red-100 text-red-800"
+                                              : "bg-yellow-100 text-yellow-800"
+                                          }`}
+                                        >
+                                          {variant.status === "APPROVED"
+                                            ? "Approved"
+                                            : variant.status === "REJECTED"
+                                            ? "Rejected"
+                                            : "Pending"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {variants.length > 2 && (
+                                    <div className="text-blue-600 text-xs font-medium">
+                                      +{variants.length - 2} more variants
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="mt-3 pt-2 border-t border-gray-200">
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="text-gray-600">
+                                      <span className="font-medium">
+                                        Total Stock:{" "}
+                                      </span>
+                                      <span className="font-semibold text-gray-900">
+                                        {variants.reduce(
+                                          (sum, v) => sum + (v.stock || 0),
+                                          0
+                                        )}{" "}
+                                        units
+                                      </span>
+                                    </div>
+                                    <div className="text-gray-600">
+                                      <span className="font-medium">
+                                        Total Value:{" "}
+                                      </span>
+                                      <span className="font-semibold text-green-600">
+                                        $
+                                        {variants
+                                          .reduce(
+                                            (sum, v) =>
+                                              sum +
+                                              (v.price || 0) * (v.stock || 0),
+                                            0
+                                          )
+                                          .toFixed(2)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Variant Status Badges */}
+                                <div className="mt-2">
+                                  <p className="text-xs text-gray-500 mb-1">
+                                    Status:
+                                  </p>
+                                  {renderVariantStatusBadges(variants)}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-3">
+                                <div className="font-medium text-sm text-gray-900 mb-1">
+                                  Base Product
+                                </div>
+                                <div className="p-2 bg-gray-50 rounded">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-green-600">
+                                      ${(product.price || 0).toFixed(2)}
                                     </span>
-                                    <span className="font-semibold text-gray-900">
-                                      {variants.reduce(
-                                        (sum, v) => sum + (v.stock || 0),
-                                        0
-                                      )}{" "}
-                                      units
+                                    <span className="text-sm text-gray-500">
+                                      ({product.stock || 0} units)
                                     </span>
                                   </div>
-                                  <div className="text-gray-600">
+                                  <div className="text-xs text-gray-600 mt-1">
                                     <span className="font-medium">
                                       Total Value:{" "}
                                     </span>
                                     <span className="font-semibold text-green-600">
                                       $
-                                      {variants
-                                        .reduce(
-                                          (sum, v) =>
-                                            sum +
-                                            (v.price || 0) * (v.stock || 0),
-                                          0
-                                        )
-                                        .toFixed(2)}
+                                      {(
+                                        (product.price || 0) *
+                                        (product.stock || 0)
+                                      ).toFixed(2)}
                                     </span>
                                   </div>
                                 </div>
                               </div>
-                              {/* Variant Status Badges */}
-                              <div className="mt-2">
-                                <p className="text-xs text-gray-500 mb-1">
-                                  Status:
-                                </p>
-                                {renderVariantStatusBadges(variants)}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="mt-3">
-                              <div className="font-medium text-sm text-gray-900 mb-1">
-                                Base Product
-                              </div>
-                              <div className="p-2 bg-gray-50 rounded">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-semibold text-green-600">
-                                    ${(product.price || 0).toFixed(2)}
-                                  </span>
-                                  <span className="text-sm text-gray-500">
-                                    ({product.stock || 0} units)
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  <span className="font-medium">
-                                    Total Value:{" "}
-                                  </span>
-                                  <span className="font-semibold text-green-600">
-                                    $
-                                    {(
-                                      (product.price || 0) *
-                                      (product.stock || 0)
-                                    ).toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-2">
-                          {product.status === "PENDING" ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleApproval(product.id, true)}
-                                disabled={approvalLoading === product.id}
-                                className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-1"
-                              >
-                                <Check className="w-4 h-4" />
-                                {approvalLoading === product.id
-                                  ? "Loading..."
-                                  : "Approve"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleApproval(product.id, false)
-                                }
-                                disabled={approvalLoading === product.id}
-                                className="flex-1 bg-red-600 text-white px-3 py-2 rounded-md text-sm hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1"
-                              >
-                                <X className="w-4 h-4" />
-                                {approvalLoading === product.id
-                                  ? "Loading..."
-                                  : "Reject"}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  setShowVariantModal(true);
-                                }}
-                                className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm hover:bg-blue-700 flex items-center justify-center gap-1"
-                              >
-                                <Eye className="w-4 h-4" />
-                                View Details
-                              </button>
-                              <button
-                                type="button"
-                                title="View Barcode"
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  setShowBarcodeModal(true);
-                                }}
-                                className="bg-gray-600 text-white px-3 py-2 rounded-md text-sm hover:bg-gray-700 flex items-center justify-center"
-                              >
-                                <QrCode className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
+                          {/* Action Buttons */}
+                          <div className="flex gap-2">
+                            {product.status === "PENDING" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleApproval(product.id, true)
+                                  }
+                                  disabled={approvalLoading === product.id}
+                                  className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-1"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  {approvalLoading === product.id
+                                    ? "Loading..."
+                                    : "Approve"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleApproval(product.id, false)
+                                  }
+                                  disabled={approvalLoading === product.id}
+                                  className="flex-1 bg-red-600 text-white px-3 py-2 rounded-md text-sm hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1"
+                                >
+                                  <X className="w-4 h-4" />
+                                  {approvalLoading === product.id
+                                    ? "Loading..."
+                                    : "Reject"}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setSelectedProductForModal(product);
+                                    setShowVariantModal(true);
+                                  }}
+                                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm hover:bg-blue-700 flex items-center justify-center gap-1"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  View Details
+                                </button>
+                                <button
+                                  type="button"
+                                  title="View Barcode"
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setShowBarcodeModal(true);
+                                  }}
+                                  className="bg-gray-600 text-white px-3 py-2 rounded-md text-sm hover:bg-gray-700 flex items-center justify-center"
+                                >
+                                  <QrCode className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -2044,35 +2121,85 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Variant Details Modal */}
-      {showVariantModal && selectedProduct && (
+      {/* Product Details Modal */}
+      {showProductDetails && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               {/* Modal Header */}
               <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {selectedProduct.name}
-                  </h2>
-                  <p className="text-gray-600 mt-1">
-                    {selectedProduct.description}
-                  </p>
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="text-sm text-gray-500">
-                      SKU: {selectedProduct.sku}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      Category: {selectedProduct.category}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      Tenant: {selectedProduct.tenant?.businessName}
-                    </span>
+                <div className="flex gap-6 flex-1">
+                  {/* Product Image */}
+                  <div className="flex-shrink-0">
+                    {productImageLoading[selectedProduct.id] ? (
+                      <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : productImages[selectedProduct.id] &&
+                      productImages[selectedProduct.id] !== "No image" ? (
+                      <div className="relative w-32 h-32 bg-gray-100 rounded-lg overflow-hidden">
+                        <Image
+                          src={productImages[selectedProduct.id]}
+                          alt={selectedProduct.name}
+                          width={128}
+                          height={128}
+                          className="object-contain w-full h-full"
+                          onError={(e) => {
+                            console.error(
+                              "Error loading product image:",
+                              selectedProduct.id
+                            );
+                            e.currentTarget.style.display = "none";
+                            const nextElement =
+                              e.currentTarget.nextElementSibling;
+                            if (nextElement) {
+                              if (nextElement instanceof HTMLElement) {
+                                nextElement.style.display = "flex";
+                              }
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gray-100 rounded-lg hidden items-center justify-center">
+                          <Package className="h-8 w-8 text-gray-400" />
+                          <span className="ml-2 text-sm text-gray-500">
+                            No image
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <Package className="h-8 w-8 text-gray-400" />
+                        <span className="ml-2 text-sm text-gray-500">
+                          No image
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Info */}
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {selectedProduct.name}
+                    </h2>
+                    <p className="text-gray-600 mt-1">
+                      {selectedProduct.description}
+                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                      {/* <span className="text-sm text-gray-500">
+                        SKU: {selectedProduct.sku}
+                      </span> */}
+                      <span className="text-sm text-gray-500">
+                        Category: {selectedProduct.category}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        Tenant: {selectedProduct.tenant?.businessName}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowVariantModal(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  onClick={() => setShowProductDetails(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold flex-shrink-0"
                 >
                   ×
                 </button>
@@ -2084,17 +2211,6 @@ export default function InventoryPage() {
                   Product Status
                 </h3>
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                      selectedProduct.status === "APPROVED"
-                        ? "bg-green-100 text-green-800"
-                        : selectedProduct.status === "PENDING"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {selectedProduct.status}
-                  </span>
                   <span className="text-sm text-gray-500">
                     Created:{" "}
                     {new Date(selectedProduct.createdAt).toLocaleDateString()}
@@ -2122,7 +2238,7 @@ export default function InventoryPage() {
                       type="text"
                       value={variantSearchTerm}
                       onChange={(e) => setVariantSearchTerm(e.target.value)}
-                      placeholder="Search variants by color, size, SKU, or barcode..."
+                      placeholder="Search variants by color, size or barcode..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -2227,14 +2343,14 @@ export default function InventoryPage() {
                                 {variant.stock || 0}
                               </span>
                             </div>
-                            <div className="flex justify-between">
+                            {/* <div className="flex justify-between">
                               <span className="text-sm text-gray-600">
                                 SKU:
                               </span>
                               <span className="text-sm text-gray-900">
                                 {variant.sku}
                               </span>
-                            </div>
+                            </div> */}
                             {variant.barcode && (
                               <div className="flex justify-between">
                                 <span className="text-sm text-gray-600">
@@ -2272,17 +2388,21 @@ export default function InventoryPage() {
                   </div>
 
                   {/* Summary */}
-                  <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  {/* <div className="mt-6 bg-gray-50 rounded-lg p-4">
                     <h4 className="text-md font-semibold text-gray-900 mb-3">
                       Summary
                     </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
                         <span className="text-sm text-gray-600">
                           Total Variants:
                         </span>
                         <div className="text-lg font-semibold text-gray-900">
-                          {selectedProductForModal?.variants?.length || 0}
+                          {(() => {
+                            const count = selectedProductForModal?.variants?.length ?? 0;
+                            console.log('Variant count:', count, 'Variants:', selectedProductForModal?.variants);
+                            return count;
+                          })()}
                         </div>
                       </div>
                       <div>
@@ -2290,10 +2410,18 @@ export default function InventoryPage() {
                           Total Stock:
                         </span>
                         <div className="text-lg font-semibold text-gray-900">
-                          {selectedProductForModal?.variants?.reduce(
-                            (sum, v) => sum + (v.stock || 0),
-                            0
-                          ) || 0}
+                          {(() => {
+                            const totalStock = selectedProductForModal?.variants?.reduce(
+                              (sum, v) => {
+                                const stock = Number(v.stock) || 0;
+                                console.log(`Variant ${v.id} stock:`, v.stock, 'converted:', stock);
+                                return sum + stock;
+                              },
+                              0
+                            ) ?? 0;
+                            console.log('Total stock:', totalStock);
+                            return totalStock;
+                          })()}
                         </div>
                       </div>
                       <div>
@@ -2302,31 +2430,26 @@ export default function InventoryPage() {
                         </span>
                         <div className="text-lg font-semibold text-green-600">
                           $
-                          {selectedProductForModal?.variants
-                            ?.reduce(
-                              (sum, v) => sum + (v.price || 0) * (v.stock || 0),
-                              0
-                            )
-                            .toFixed(2) || "0.00"}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">
-                          Avg. Price:
-                        </span>
-                        <div className="text-lg font-semibold text-gray-900">
-                          $
-                          {(selectedProductForModal?.variants
-                            ? selectedProductForModal.variants.reduce(
-                                (sum, v) => sum + (v.price || 0),
+                          {(() => {
+                            const totalValue = (selectedProductForModal?.variants
+                              ?.reduce(
+                                (sum, v) => {
+                                  const price = Number(v.price) || 0;
+                                  const stock = Number(v.stock) || 0;
+                                  const value = price * stock;
+                                  console.log(`Variant ${v.id} - price: ${v.price} (${price}), stock: ${v.stock} (${stock}), value: ${value}`);
+                                  return sum + value;
+                                },
                                 0
-                              ) / (selectedProductForModal.variants.length || 1)
-                            : 0
-                          ).toFixed(2)}
+                              ) ?? 0
+                            ).toFixed(2);
+                            console.log('Total value:', totalValue);
+                            return totalValue;
+                          })()}
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               ) : (
                 /* Base Product Details */
@@ -2373,14 +2496,15 @@ export default function InventoryPage() {
               )}
 
               {/* Close Button */}
-              <div className="mt-6 flex justify-end">
+              {/* <div className="mt-6 flex justify-end">
                 <button
+                  type="button"
                   onClick={() => setShowVariantModal(false)}
                   className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                 >
                   Close
                 </button>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -2584,6 +2708,7 @@ export default function InventoryPage() {
               {/* Close Button */}
               <div className="flex justify-end">
                 <button
+                  type="button"
                   onClick={closeBarcodeModal}
                   className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                 >
