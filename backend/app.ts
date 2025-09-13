@@ -24,8 +24,10 @@ app.use(
   cors({
     origin: [
       "https://cornven.vercel.app",
+      "https://cornven-staging.vercel.app",
       "http://localhost:3000",
-      "https://cornven-pos-system.vercel.app",
+      "https://cornven-api.vercel.app",
+      "https://cornven-api-staging.vercel.app",
     ],
     credentials: true,
   })
