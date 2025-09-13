@@ -131,27 +131,28 @@ router.get("/rentals/overdue", async (_req, res) => {
 
 /**
  * DELETE /admin/payment-reminders/clear
- * Clear all payment reminder history for testing purposes
+ * Delete all payment reminder history for testing purposes
  */
 router.delete("/payment-reminders/clear", async (req, res) => {
   try {
     console.log("Clearing payment reminder history for testing");
-    
+
     const deletedCount = await (prisma as any).paymentReminder.deleteMany({});
-    
+
     res.json({
       success: true,
       message: "Payment reminder history cleared successfully",
       deletedCount: deletedCount.count,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error clearing payment reminders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to clear payment reminders",
-      message: error instanceof Error ? error.message : "Unknown error occurred",
-      timestamp: new Date().toISOString()
+      message:
+        error instanceof Error ? error.message : "Unknown error occurred",
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -164,27 +165,28 @@ router.delete("/payment-reminders/clear", async (req, res) => {
 router.post("/payment-reminders/trigger", async (req, res) => {
   try {
     console.log("Manual payment reminder trigger initiated by admin");
-    
+
     const result = await paymentReminderService.triggerPaymentReminders();
-    
+
     res.json({
-       success: true,
-       message: "Payment reminder check completed successfully",
-       stats: {
-         totalRentalsProcessed: result.processed,
-         totalEmailsSent: result.emailsSent,
-         totalErrors: result.errors.length,
-         errors: result.errors
-       },
-       timestamp: new Date().toISOString()
-     });
+      success: true,
+      message: "Payment reminder check completed successfully",
+      stats: {
+        totalRentalsProcessed: result.processed,
+        totalEmailsSent: result.emailsSent,
+        totalErrors: result.errors.length,
+        errors: result.errors,
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Error triggering payment reminders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to trigger payment reminders",
-      message: error instanceof Error ? error.message : "Unknown error occurred",
-      timestamp: new Date().toISOString()
+      message:
+        error instanceof Error ? error.message : "Unknown error occurred",
+      timestamp: new Date().toISOString(),
     });
   }
 });
